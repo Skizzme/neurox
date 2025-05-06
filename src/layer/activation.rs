@@ -26,3 +26,23 @@ impl Activation {
         }
     }
 }
+
+impl From<usize> for Activation {
+    fn from(value: usize) -> Self {
+        match value {
+            1 => Activation::ReLU,
+            2 => Activation::TanH,
+            _ => Activation::Linear,
+        }
+    }
+}
+
+impl Into<usize> for &Activation {
+    fn into(self) -> usize {
+        match self {
+            Activation::Linear => 0,
+            Activation::ReLU => 1,
+            Activation::TanH => 2,
+        }
+    }
+}

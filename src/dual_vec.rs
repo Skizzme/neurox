@@ -20,10 +20,13 @@ impl DualVec {
             (Executor::GPU(q), _) | (_, Executor::GPU(q)) => Some(Rc::new(RefCell::new(cl_utils::new_buffer(q, len)))),
             _ => None,
         };
+        // Ensures that only a copy on both the GPU and CPU are made only if it will
+        // be used on both, otherwise it would waste memory creating unused copies.
         let cpu = match exec {
             (Executor::CPU, _) | (_, Executor::CPU) => Some(Rc::new(RefCell::new(vec![0.; len]))),
             _ => None,
         };
+
         DualVec {
             len,
             cpu: (cpu, false),
@@ -35,12 +38,9 @@ impl DualVec {
         match exec {
             GPU(_) => {}
             Executor::CPU => {
-                match self.cpu() {
-                    None => {}
-                    Some(vec) => {
-                        for i in 0..self.len {
-                            vec.borrow_mut()[i] = (random::<f32>() * 2.0 - 1.0) / self.len as f32 * 4.;
-                        }
+                if let Some(vec) = self.cpu() {
+                    for i in 0..self.len {
+                        vec.borrow_mut()[i] = (random::<f32>() * 2.0 - 1.0) / self.len as f32 * 4.;
                     }
                 }
             }

@@ -1,9 +1,13 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::{Cursor, Read};
+use std::rc::Rc;
 use ocl::Kernel;
-use crate::activation::Activation;
+use crate::layer::activation::Activation;
 use crate::dual_vec::DualVec;
 use crate::{Executor, Optimizer};
-use crate::layer::{Layer, LayerCodec};
+use crate::layer::{Layer};
+use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 #[derive(Debug)]
 pub struct Dense<'a> {
@@ -28,31 +32,7 @@ pub struct Dense<'a> {
 }
 
 impl<'a> Dense<'a> {
-    pub fn from_values(exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize, size: usize, activation: Activation, values: Vec<u8>) -> Self {
-        let c = exec.1; // current
 
-        let mut a = Dense {
-            exec: exec.1,
-            execs: exec,
-            size,
-            input_len: inputs,
-
-            activation,
-            outputs: HashMap::new(),
-            activated_outputs: HashMap::new(),
-
-            sensitivities: HashMap::new(),
-
-            weights: DualVec::from_exec(c, inputs * size),
-            biases: DualVec::from_exec(c, size),
-
-            weight_mods: DualVec::from_exec(c, inputs * size),
-            bias_mods: DualVec::from_exec(c, size),
-            forward_kernels: HashMap::new(),
-        };
-
-        a
-    }
     pub fn new(exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize, size: usize, activation: Activation) -> Self {
         let c = exec.1; // current
 
@@ -93,10 +73,12 @@ impl<'a> Dense<'a> {
     }
 }
 
-impl<'a> Layer for Dense<'a> {
+impl Layer for Dense<'_> {
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize {
         let batch_size = activated_inputs.len() / self.input_len;
+
         self.setup_batch(batch_size);
+
         match self.exec {
             Executor::GPU(q) => {
 
@@ -107,11 +89,14 @@ impl<'a> Layer for Dense<'a> {
                 for batch in 0..batch_size {
                     let output_offset = batch * self.size;
                     let input_offset = batch * self.input_len;
+
                     let mut x = 0;
                     while x < self.size {
                         let outputs = self.outputs.get_mut(&batch_size).unwrap();
                         let output_index = x + output_offset;
+
                         outputs.cpu().unwrap().borrow_mut()[output_index] = self.biases.cpu().unwrap().borrow_mut()[x];
+
                         let mut y = 0;
                         while y < self.input_len {
                             let weight_index = (self.input_len * x) + y;
@@ -137,23 +122,44 @@ impl<'a> Layer for Dense<'a> {
     fn activated_output(&mut self, batch_size: usize) -> &mut DualVec {
         self.activated_outputs.get_mut(&batch_size).unwrap()
     }
-}
 
-impl<'a> LayerCodec for Dense<'a> {
-    fn to_values(&mut self) -> Vec<u8> {
-        let mut out = Vec::new();
+    fn to_bytes(&mut self, bytes: &mut VecWriter) {
+        bytes.usize(self.input_len);
+        bytes.usize(self.size);
+        bytes.index(&self.activation);
+
         let weights = self.weights.cpu().unwrap();
         for w in weights.borrow().iter() {
-            out.append(&mut w.to_be_bytes().to_vec());
+            bytes.f32(*w);
         }
-        // let weights = self.weights.cpu().unwrap().borrow();
-        // for w in weights.iter() {
-        //     out.append(&mut w.to_be_bytes().to_vec());
-        // }
-        out
+
+        let biases = self.biases.cpu().unwrap();
+        for b in biases.borrow().iter() {
+            bytes.f32(*b);
+        }
     }
 
-    fn set_values(&mut self, values: Vec<u8>) {
+    fn from_bytes(exec: (&'static Executor, &'static Executor, &'static Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer + 'static>> {
+        let mut l = Dense::new(exec, bytes.usize(), bytes.usize(), bytes.indexed());
 
+        let mut weights = Vec::with_capacity(l.weights.len());
+        for i in 0..weights.capacity() {
+            weights[i] = bytes.f32();
+        }
+
+        let mut biases = Vec::with_capacity(l.biases.len());
+        for i in 0..biases.capacity() {
+            biases[i] = bytes.f32();
+        }
+
+        Rc::new(RefCell::new(l))
+    }
+
+    fn id(&self) -> usize {
+        0
+    }
+
+    fn exec(&self) -> &Executor {
+        self.exec
     }
 }

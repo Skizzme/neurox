@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 ocl = "0.19.7"
 rand = "0.8.5"
+log = "0.4.25"
 
 [workspace]
 members = [

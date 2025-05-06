@@ -1,6 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use crate::dual_vec::DualVec;
 use crate::{Executor, Optimizer};
 use crate::layer::Layer;
+use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 #[derive(Debug)]
 pub struct Attention<'a> {
@@ -18,7 +21,7 @@ impl<'a> Attention<'a> {
     }
 }
 
-impl<'a> Layer for Attention<'a> {
+impl Layer for Attention<'_> {
     fn forward(&mut self, inputs: &mut DualVec) -> usize {
         todo!()
     }
@@ -29,5 +32,21 @@ impl<'a> Layer for Attention<'a> {
 
     fn activated_output(&mut self, batch_size: usize) -> &mut DualVec {
         todo!()
+    }
+
+    fn to_bytes(&mut self, writer: &mut VecWriter) {
+        todo!()
+    }
+
+    fn from_bytes<'a>(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer>> {
+        todo!()
+    }
+
+    fn id(&self) -> usize {
+        1
+    }
+
+    fn exec(&self) -> &Executor {
+        self.exec
     }
 }
