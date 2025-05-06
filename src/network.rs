@@ -1,4 +1,7 @@
 use std::cell::RefCell;
+use std::fmt;
+use std::fmt::{Debug, DebugStruct, Formatter};
+use std::io::{Read, Seek};
 use std::rc::Rc;
 use log::error;
 use crate::dual_vec::DualVec;
@@ -10,15 +13,16 @@ use crate::layer::dense::Dense;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 pub struct Network<'a> {
-    layers: Vec<Rc<RefCell<dyn Layer + 'a>>>,
+    layers: Vec<Rc<RefCell<dyn Layer<'a> + 'a>>>,
 }
 
 impl<'a> Network<'a> {
 
-    pub fn new(mut input_size: usize, layers_types: Vec<(&'a Executor, LayerType)>) -> Self {
+    pub fn new(mut input_size: usize, layers_types: &'a Vec<(&'a Executor, LayerType)>) -> Self {
         let mut layers = vec![];
         for i in 0..layers_types.len() {
-            let (current_exec, l_type) = &layers_types[i];
+            let l_type = &layers_types[i].1;
+            let current_exec= layers_types[i].0;
             let prev_exec =
                 if i > 0 {
                     layers_types[i-1].0
@@ -32,7 +36,7 @@ impl<'a> Network<'a> {
                     &CPU
                 };
 
-            let (layer, output_size) = l_type.layer((prev_exec, *current_exec, next_exec), input_size);
+            let (layer, output_size) = l_type.layer((prev_exec, current_exec, next_exec), input_size);
 
             layers.push(layer);
             input_size = output_size;
@@ -75,7 +79,7 @@ impl<'a> Network<'a> {
         writer.vec()
     }
 
-    pub fn from_bytes(gpu_executor: Option<&'static Executor>, bytes: Vec<u8>) -> Network {
+    pub fn from_bytes(gpu_executor: Option<&'a Executor>, bytes: Vec<u8>) -> Network {
         let mut reader = CursorReader::new(bytes.as_slice());
 
         let layer_count = reader.usize();
@@ -97,7 +101,7 @@ impl<'a> Network<'a> {
         let mut last_exec = cpu_exec;
         for i in 0..layer_count {
             let current_exec = layer_types[i].1;
-            let next_exec = if i+1 < layer_count {
+            let next_exec = if i+1 <= layer_count {
                 &CPU
             } else {
                 layer_types[i+1].1
@@ -110,6 +114,11 @@ impl<'a> Network<'a> {
                 }
             }
         }
+
+        let mut c = reader.cursor();
+        let mut v = Vec::new();
+        c.read_to_end(&mut v);
+        println!("{} {:?}", c.position(), v);
 
         Self {
             layers,

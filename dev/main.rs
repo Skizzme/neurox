@@ -8,23 +8,33 @@ use neurox::network::Network;
 
 pub fn main() {
     let gpu = &Executor::gpu();
-    let mut network = Network::new(2, vec![
+    let layers = &vec![
         // (gpu, Attention(6, 12, 20, 44)),
         // (gpu, Dense(46, ReLU)),
-        // (&CPU, Dense(1024, TanH)),
-        // (&CPU, Dense(512, TanH)),
-        (&CPU, Dense(4, TanH)),
-        (&CPU, Dense(2, TanH))
-    ]);
+        (&CPU, Dense(1024, Linear)),
+        // (&CPU, Dense(2056, Linear)),
+        (&CPU, Dense(4, Linear)),
+        (&CPU, Dense(2, Linear))
+    ];
+    let mut network = Network::new(2, layers);
     let mut input = DualVec::from_exec(&CPU, 2);
+    input.cpu().unwrap().borrow_mut().clear();
     input.cpu().unwrap().borrow_mut().append(&mut vec![-0.7, 0.3]);
 
     let st = Instant::now();
     let mut output = network.predict(&mut input);
     let d = st.elapsed();
-    println!("{:?} {:?}", output.cpu().unwrap(), d);
+    println!("before {:?} in {:?} {:?}", input, output, d);
+    let st = Instant::now();
     let bytes = network.to_bytes();
-    println!("{:?}", bytes);
+    let d = st.elapsed();
+    println!("to bytes in {:?}", d);
 
-    let after = Network::from_bytes(Some(gpu), bytes);
+    let st = Instant::now();
+    let mut after = Network::from_bytes(Some(gpu), bytes.clone());
+    let d = st.elapsed();
+    println!("from bytes in {:?}", d);
+
+    let a_output = after.predict(&mut input);
+    println!("after in {:?} out {:?}", input, a_output);
 }

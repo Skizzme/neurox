@@ -73,7 +73,7 @@ impl<'a> Dense<'a> {
     }
 }
 
-impl Layer for Dense<'_> {
+impl<'a> Layer<'a> for Dense<'a> {
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize {
         let batch_size = activated_inputs.len() / self.input_len;
 
@@ -139,16 +139,18 @@ impl Layer for Dense<'_> {
         }
     }
 
-    fn from_bytes(exec: (&'static Executor, &'static Executor, &'static Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer + 'static>> {
+    fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> {
         let mut l = Dense::new(exec, bytes.usize(), bytes.usize(), bytes.indexed());
 
-        let mut weights = Vec::with_capacity(l.weights.len());
-        for i in 0..weights.capacity() {
+        let w = l.weights.cpu().unwrap();
+        let mut weights = w.borrow_mut();
+        for i in 0..weights.len() {
             weights[i] = bytes.f32();
         }
 
-        let mut biases = Vec::with_capacity(l.biases.len());
-        for i in 0..biases.capacity() {
+        let b = l.biases.cpu().unwrap();
+        let mut biases = b.borrow_mut();
+        for i in 0..biases.len() {
             biases[i] = bytes.f32();
         }
 
@@ -161,5 +163,9 @@ impl Layer for Dense<'_> {
 
     fn exec(&self) -> &Executor {
         self.exec
+    }
+
+    fn weights(&self) -> &DualVec {
+        &self.weights
     }
 }

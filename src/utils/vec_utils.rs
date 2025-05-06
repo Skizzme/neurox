@@ -33,6 +33,14 @@ impl<'a> CursorReader<'a> {
     pub fn indexed<T: From<usize>>(&mut self) -> T {
         T::from(self.usize())
     }
+
+    pub fn cursor(self) -> Cursor<&'a [u8]> {
+        self.cursor
+    }
+
+    pub fn pos(&self) -> usize {
+        self.cursor.position() as usize
+    }
 }
 
 pub struct VecWriter {
@@ -63,6 +71,11 @@ impl VecWriter {
     }
 
     pub fn index<T: Into<usize>>(&mut self, v: T) {
-        self.vec.append(&mut v.into().to_be_bytes().to_vec());
+        let v= v.into();
+        self.usize(v);
+    }
+
+    pub fn len(&self) -> usize {
+        self.vec.len()
     }
 }

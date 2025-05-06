@@ -21,7 +21,7 @@ impl<'a> Attention<'a> {
     }
 }
 
-impl Layer for Attention<'_> {
+impl<'a> Layer<'a> for Attention<'_> {
     fn forward(&mut self, inputs: &mut DualVec) -> usize {
         todo!()
     }
@@ -38,7 +38,7 @@ impl Layer for Attention<'_> {
         todo!()
     }
 
-    fn from_bytes<'a>(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer>> {
+    fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> {
         todo!()
     }
 
@@ -48,5 +48,9 @@ impl Layer for Attention<'_> {
 
     fn exec(&self) -> &Executor {
         self.exec
+    }
+
+    fn weights(&self) -> &DualVec {
+        self.weights()
     }
 }
