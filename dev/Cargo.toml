@@ -1,0 +1,11 @@
+[package]
+name = "neurox-dev"
+version = "0.0.0"
+edition = "2024"
+
+[[bin]]
+path = "main.rs"
+name = "neurox-dev"
+
+[dependencies]
+neurox = {version = "*", path = ".."}
