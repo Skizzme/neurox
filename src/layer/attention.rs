@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::dual_vec::DualVec;
+
 use crate::{Executor, Optimizer};
+use crate::dual_vec::DualVec;
 use crate::layer::Layer;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
 
@@ -51,6 +52,6 @@ impl<'a> Layer<'a> for Attention<'_> {
     }
 
     fn weights(&self) -> &DualVec {
-        self.weights()
+        todo!()
     }
 }

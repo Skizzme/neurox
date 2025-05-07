@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+
 use ocl::Buffer;
 use rand::random;
+
 use crate::Executor;
 use crate::Executor::GPU;
 use crate::utils::cl_utils;

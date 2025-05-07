@@ -1,8 +1,7 @@
-use std::ops::Index;
 use ocl::{Buffer, Kernel, ProQue, SpatialDims};
 use ocl::enums::WriteSrc;
 use ocl::traits::WorkDims;
-use rand::{random, Rng};
+use rand::random;
 
 pub fn new_buffer<T: ocl::OclPrm>(pro_que: &ProQue, size: usize) -> Buffer<T> {
     new_buffer_f(pro_que, size, T::default())
@@ -82,10 +81,12 @@ pub unsafe fn execute_kernel<SD: Into<SpatialDims>>(pro_que: &ProQue, kernel: &K
         _ => SpatialDims::Unspecified
     };
     // println!("{:?} {:?}", size, wg_size);
-    kernel
-        .cmd()
-        .global_work_size(size)
-        .local_work_size(wg_size)
-        .enq()
-        .expect("Failed to enqueue activation kernel");
+    unsafe {
+        kernel
+            .cmd()
+            .global_work_size(size)
+            .local_work_size(wg_size)
+            .enq()
+            .expect("Failed to enqueue activation kernel");
+    }
 }

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::time::Instant;
 use neurox::{Executor};
 use neurox::layer::activation::Activation::{Linear, TanH};

@@ -1,6 +1,5 @@
-use std::collections::hash_map::Values;
-use std::fmt::Pointer;
 use ocl::{Buffer, ProQue, SpatialDims};
+
 use crate::utils::cl_utils;
 
 pub fn mult(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: &Buffer<f32>, target: &Buffer<f32>) {

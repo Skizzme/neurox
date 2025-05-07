@@ -1,9 +1,11 @@
 use std::cell::RefCell;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::rc::Rc;
+
 use activation::Activation;
-use crate::dual_vec::DualVec;
+
 use crate::{Executor, Optimizer};
+use crate::dual_vec::DualVec;
 use crate::layer::attention::Attention;
 use crate::layer::dense::Dense;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
@@ -41,14 +43,14 @@ pub enum LayerType {
 }
 
 impl LayerType {
-    pub fn layer<'a>(&'a self, exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize) -> (Rc<RefCell<dyn Layer + 'a>>, usize) {
+    pub fn layer<'a>(&'a self, exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize) -> (Rc<RefCell<dyn Layer<'a> + 'a>>, usize) {
         match self {
             LayerType::Dense(s, a) => (Rc::new(RefCell::new(Dense::new(exec, inputs, *s, a.clone()))), *s),
             LayerType::Attention(h, i, m, o) => (Rc::new(RefCell::new(Attention::new(exec, inputs, *h, *i, *m, *o))), *o),
         }
     }
 
-    pub fn from_values<'a>(&'a self, exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize) -> (Rc<RefCell<dyn Layer + 'a>>, usize) {
+    pub fn from_values<'a>(&'a self, exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize) -> (Rc<RefCell<dyn Layer<'a> + 'a>>, usize) {
         match self {
             LayerType::Dense(s, a) => (Rc::new(RefCell::new(Dense::new(exec, inputs, *s, a.clone()))), *s),
             LayerType::Attention(h, i, m, o) => (Rc::new(RefCell::new(Attention::new(exec, inputs, *h, *i, *m, *o))), *o),

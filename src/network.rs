@@ -1,9 +1,6 @@
 use std::cell::RefCell;
-use std::fmt;
-use std::fmt::{Debug, DebugStruct, Formatter};
-use std::io::{Read, Seek};
 use std::rc::Rc;
-use log::error;
+
 use crate::dual_vec::DualVec;
 use crate::Executor;
 use crate::Executor::{CPU, GPU};
@@ -79,7 +76,7 @@ impl<'a> Network<'a> {
         writer.vec()
     }
 
-    pub fn from_bytes(gpu_executor: Option<&'a Executor>, bytes: Vec<u8>) -> Network {
+    pub fn from_bytes(gpu_executor: Option<&'a Executor>, bytes: Vec<u8>) -> Network<'a> {
         let mut reader = CursorReader::new(bytes.as_slice());
 
         let layer_count = reader.usize();
@@ -113,12 +110,8 @@ impl<'a> Network<'a> {
                     eprintln!("Unknown layer type encountered while decoding layer from bytes. Value: {}", v)
                 }
             }
+            last_exec = current_exec;
         }
-
-        let mut c = reader.cursor();
-        let mut v = Vec::new();
-        c.read_to_end(&mut v);
-        println!("{} {:?}", c.position(), v);
 
         Self {
             layers,

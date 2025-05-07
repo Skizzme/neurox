@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{Cursor, Read};
 use std::rc::Rc;
+
 use ocl::Kernel;
-use crate::layer::activation::Activation;
-use crate::dual_vec::DualVec;
+
 use crate::{Executor, Optimizer};
-use crate::layer::{Layer};
+use crate::dual_vec::DualVec;
+use crate::layer::activation::Activation;
+use crate::layer::Layer;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 #[derive(Debug)]
@@ -80,7 +81,7 @@ impl<'a> Layer<'a> for Dense<'a> {
         self.setup_batch(batch_size);
 
         match self.exec {
-            Executor::GPU(q) => {
+            Executor::GPU(_) => {
 
             }
             Executor::CPU => {

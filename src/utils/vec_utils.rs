@@ -1,5 +1,4 @@
 use std::io::{Cursor, Read};
-use std::ops::Index;
 
 pub struct CursorReader<'a> {
     cursor: Cursor<&'a [u8]>
