@@ -25,6 +25,7 @@ pub struct Dense<'a> {
     weight_mods: DualVec,
     bias_mods: DualVec,
 
+    // TODO change this to use max size buffer instead of hashmap
     outputs: HashMap<usize, DualVec>,
     activated_outputs: HashMap<usize, DualVec>,
     sensitivities: HashMap<usize, DualVec>,
@@ -62,7 +63,6 @@ impl<'a> Dense<'a> {
     }
 
     fn setup_batch(&mut self, batch_size: usize) {
-
         if !self.outputs.contains_key(&batch_size) {
             let p_to_c = (self.execs.0, self.execs.1); // previous to current
             let c_to_n = (self.execs.1, self.execs.2); // current to next
