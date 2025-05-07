@@ -124,16 +124,18 @@ impl<'a> Layer<'a> for Dense<'a> {
     }
 
     fn as_bytes(&mut self, bytes: &mut VecWriter) {
+        let weights = self.weights.cpu().unwrap();
+        let biases = self.biases.cpu().unwrap();
+        bytes.reserve((3 * 8) + (weights.borrow().len() + biases.borrow().len()) * 4);
+
         bytes.usize(self.input_len);
         bytes.usize(self.size);
         bytes.index(&self.activation);
 
-        let weights = self.weights.cpu().unwrap();
         for w in weights.borrow().iter() {
             bytes.f32(*w);
         }
 
-        let biases = self.biases.cpu().unwrap();
         for b in biases.borrow().iter() {
             bytes.f32(*b);
         }

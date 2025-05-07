@@ -89,6 +89,7 @@ impl DualVec {
     }
 
     pub fn cpu(&mut self) -> Option<Rc<RefCell<Vec<f32>>>> {
+        // TODO correct this. It should create anything necessary instead of returning None
         if self.cpu.0.is_none() {
             return None;
         }

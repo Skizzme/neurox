@@ -57,16 +57,22 @@ impl VecWriter {
         self.vec
     }
 
+    fn write(&mut self, v: &[u8]) {
+        for i in 0..v.len() {
+            self.vec.push(v[i])
+        }
+    }
+
     pub fn f32(&mut self, v: f32) {
-        self.vec.append(&mut v.to_be_bytes().to_vec());
+        self.write(&v.to_be_bytes())
     }
 
     pub fn usize(&mut self, v: usize) {
-        self.vec.append(&mut v.to_be_bytes().to_vec());
+        self.write(&v.to_be_bytes())
     }
 
     pub fn i32(&mut self, v: i32) {
-        self.vec.append(&mut v.to_be_bytes().to_vec());
+        self.write(&v.to_be_bytes())
     }
 
     pub fn index<T: Into<usize>>(&mut self, v: T) {
@@ -76,5 +82,9 @@ impl VecWriter {
 
     pub fn len(&self) -> usize {
         self.vec.len()
+    }
+
+    pub fn reserve(&mut self, len: usize) {
+        self.vec.reserve(len);
     }
 }

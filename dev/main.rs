@@ -13,7 +13,7 @@ pub fn main() {
     let layers = &vec![
         // (gpu, Attention(6, 12, 20, 44)),
         // (gpu, Dense(46, ReLU)),
-        // (&CPU, Dense(2056, Linear)),
+        (&CPU, Dense(2056, Linear)),
         (&CPU, Dense(1024, Linear)),
         (&CPU, Dense(4, Linear)),
         (&CPU, Dense(2, Linear))
@@ -32,14 +32,22 @@ pub fn main() {
     let output_vec = output.cpu().unwrap().borrow().clone(); // returns Vec<f32>
 
     println!("{:?}", output_vec);
+    let st = Instant::now();
     let mut output = network.predict(&mut input);
+    let d = st.elapsed();
     let output_vec = output.cpu().unwrap().borrow().clone(); // returns Vec<f32>
 
-    println!("{:?}", output_vec);
+    println!("{:?} {:?}", output_vec, d);
 
     // i haven't yet implemented a training method, but it will work similarly easily.
 
+    let st = Instant::now();
     let bytes = network.as_bytes();
+    let d = st.elapsed();
+    println!("to bytes in {:?}", d);
     // could then write bytes to a file and load them like so
+    let st = Instant::now();
     let loaded_network = Network::from_bytes(Some(gpu), bytes);
+    let d = st.elapsed();
+    println!("loaded in {:?}", d);
 }
