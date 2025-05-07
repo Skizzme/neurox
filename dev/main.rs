@@ -28,7 +28,7 @@ pub fn main() {
     let d = st.elapsed();
     println!("before {:?} in {:?} {:?}", input, output, d);
     let st = Instant::now();
-    let bytes = network.to_bytes();
+    let bytes = network.as_bytes();
     let d = st.elapsed();
     println!("to bytes in {:?}", d);
 

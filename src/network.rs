@@ -53,7 +53,7 @@ impl<'a> Network<'a> {
         self.layers.last().unwrap().borrow_mut().activated_output(batch_size).clone()
     }
 
-    pub fn to_bytes(&mut self) -> Vec<u8> {
+    pub fn as_bytes(&mut self) -> Vec<u8> {
         let mut writer = VecWriter::new();
 
         writer.usize(self.layers.len());
@@ -70,7 +70,7 @@ impl<'a> Network<'a> {
         }
 
         for l in &self.layers {
-            l.borrow_mut().to_bytes(&mut writer);
+            l.borrow_mut().as_bytes(&mut writer);
         }
 
         writer.vec()

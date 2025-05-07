@@ -35,7 +35,7 @@ impl<'a> Layer<'a> for Attention<'_> {
         todo!()
     }
 
-    fn to_bytes(&mut self, writer: &mut VecWriter) {
+    fn as_bytes(&mut self, writer: &mut VecWriter) {
         todo!()
     }
 

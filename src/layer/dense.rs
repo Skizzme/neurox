@@ -124,7 +124,7 @@ impl<'a> Layer<'a> for Dense<'a> {
         self.activated_outputs.get_mut(&batch_size).unwrap()
     }
 
-    fn to_bytes(&mut self, bytes: &mut VecWriter) {
+    fn as_bytes(&mut self, bytes: &mut VecWriter) {
         bytes.usize(self.input_len);
         bytes.usize(self.size);
         bytes.index(&self.activation);

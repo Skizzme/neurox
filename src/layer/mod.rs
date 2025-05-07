@@ -25,7 +25,7 @@ pub trait Layer<'a> {
     fn backward(&mut self, next_sensitivities: &DualVec, optimizer: &Optimizer);
     fn activated_output(&mut self, batch_size: usize) -> &mut DualVec;
 
-    fn to_bytes(&mut self, writer: &mut VecWriter);
+    fn as_bytes(&mut self, writer: &mut VecWriter);
     fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> where Self: Sized;
 
     fn id(&self) -> usize;
@@ -49,13 +49,6 @@ impl LayerType {
             LayerType::Attention(h, i, m, o) => (Rc::new(RefCell::new(Attention::new(exec, inputs, *h, *i, *m, *o))), *o),
         }
     }
-
-    pub fn from_values<'a>(&'a self, exec: (&'a Executor, &'a Executor, &'a Executor), inputs: usize) -> (Rc<RefCell<dyn Layer<'a> + 'a>>, usize) {
-        match self {
-            LayerType::Dense(s, a) => (Rc::new(RefCell::new(Dense::new(exec, inputs, *s, a.clone()))), *s),
-            LayerType::Attention(h, i, m, o) => (Rc::new(RefCell::new(Attention::new(exec, inputs, *h, *i, *m, *o))), *o),
-        }
-    }
 }
 
 
@@ -73,7 +66,7 @@ impl<'a> Layer<'a> for DummyLayer {
         todo!()
     }
 
-    fn to_bytes(&mut self, writer: &mut VecWriter) {
+    fn as_bytes(&mut self, writer: &mut VecWriter) {
     }
 
     fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> {
