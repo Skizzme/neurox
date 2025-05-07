@@ -17,7 +17,7 @@ pub mod activation;
 pub trait Layer<'a> {
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize;
     fn backward(&mut self, next_sensitivities: &DualVec, optimizer: &Optimizer);
-    fn activated_output(&mut self, batch_size: usize) -> &mut DualVec;
+    fn activated_output(&mut self) -> &mut DualVec;
 
     fn as_bytes(&mut self, writer: &mut VecWriter);
     fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> where Self: Sized;

@@ -48,9 +48,9 @@ impl<'a> Network<'a> {
         let mut batch_size = self.layers[0].borrow_mut().forward(inputs);
         for i in 1..self.layers.len() {
             let layer = self.layers[i].clone();
-            layer.borrow_mut().forward(self.layers[i-1].borrow_mut().activated_output(batch_size));
+            layer.borrow_mut().forward(self.layers[i-1].borrow_mut().activated_output());
         }
-        self.layers.last().unwrap().borrow_mut().activated_output(batch_size).clone()
+        self.layers.last().unwrap().borrow_mut().activated_output().clone()
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

@@ -31,7 +31,7 @@ impl<'a> Layer<'a> for Attention<'_> {
         todo!()
     }
 
-    fn activated_output(&mut self, batch_size: usize) -> &mut DualVec {
+    fn activated_output(&mut self) -> &mut DualVec {
         todo!()
     }
 

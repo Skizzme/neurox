@@ -11,6 +11,7 @@ use crate::utils::cl_utils;
 #[derive(Debug)]
 pub struct DualVec {
     len: usize,
+    capacity: usize,
     cpu: (Option<Rc<RefCell<Vec<f32>>>>, bool),
     gpu: (Option<Rc<RefCell<Buffer<f32>>>>, bool),
 }
@@ -31,6 +32,7 @@ impl DualVec {
 
         DualVec {
             len,
+            capacity: len,
             cpu: (cpu, false),
             gpu: (gpu, false),
         }
@@ -52,6 +54,7 @@ impl DualVec {
     pub fn from_exec(exec: &Executor, len: usize) -> Self {
         DualVec {
             len,
+            capacity: len,
             cpu: (match exec {
                 Executor::GPU(_) => None,
                 Executor::CPU => Some(Rc::new(RefCell::new(vec![0.; len]))),
@@ -111,12 +114,59 @@ impl DualVec {
     pub fn len(&self) -> usize {
         self.len
     }
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    pub fn truncate_to(&mut self, size: usize) {
+        // No modifications to the GPU buffer are necessary with OpenCL, since all
+        // sizes are passed through the kernel parameters, and so no actual change is needed.
+        if let Some(cpu) = &self.cpu.0 {
+            let mut vec = cpu.borrow_mut();
+            if vec.len() > size {
+                vec.truncate(size);
+            }
+        }
+        self.len = self.len.min(size);
+    }
+
+    /// Expands the necessary GPU and/or CPU storage to have a capacity of size
+    pub fn expand_to(&mut self, size: usize) {
+        if let Some(gpu) = &self.gpu.0 {
+            let buf = gpu.borrow_mut();
+            if buf.len() < size {
+                let new_buf = Buffer::builder()
+                    .queue(buf.default_queue().unwrap().clone())
+                    .len(size)
+                    .build()
+                    .expect("Failed to create new buffer");
+
+                buf.copy(&new_buf, None, None).enq()
+                    .expect("Failed to copy buffer");
+
+                gpu.replace(new_buf);
+            }
+        }
+
+        if let Some(cpu) = &self.cpu.0 {
+            let mut vec = cpu.borrow_mut();
+
+            let capacity = vec.capacity();
+            if capacity < size {
+                vec.reserve_exact(size - capacity);
+                vec.resize(size, 0.);
+            }
+        }
+        self.capacity = self.capacity.max(size);
+        self.len = self.capacity;
+    }
 }
 
 impl Clone for DualVec {
     fn clone(&self) -> Self {
         Self {
             len: self.len,
+            capacity: self.capacity,
             cpu: self.cpu.clone(),
             gpu: self.gpu.clone(),
         }

@@ -17,6 +17,7 @@ pub fn new_buffer_f<T: ocl::OclPrm>(pro_que: &ProQue, size: usize, fill: T) -> B
 }
 
 pub fn buf_read<T: ocl::OclPrm>(buffer: &Buffer<T>) -> Vec<T> {
+
     let mut target = vec![T::default(); buffer.len()];
     read_to(buffer, &mut target);
     target
