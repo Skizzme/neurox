@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use ocl::Kernel;
+use ocl::{Kernel, ProQue};
 
 use crate::{Executor, Optimizer};
 use crate::dual_vec::DualVec;
@@ -74,6 +74,75 @@ impl<'a> Dense<'a> {
             self.sensitivities.expand_to(self.input_len * batch_size);
         }
     }
+
+    fn gpu_forward(&mut self, activated_inputs: &mut DualVec, batch_size: usize, pq: &ProQue) {
+        let outputs = self.outputs.gpu().unwrap();
+        let mut outputs = outputs.borrow_mut();
+        outputs.cmd().fill(0., None).enq();
+
+        if self.forward_kernel.is_none() {
+            self.forward_kernel = Some(
+                pq.kernel_builder("forward")
+                    .arg(self.input_len as u64)
+                    .arg(self.size as u64)
+                    .arg(&*self.weights.gpu().unwrap().borrow())
+                    .arg(&*self.biases.gpu().unwrap().borrow())
+                    .arg(&*activated_inputs.gpu().unwrap().borrow())
+                    .arg(&*outputs)
+                    .arg(&*self.activated_outputs.gpu().unwrap().borrow())
+                    .arg_named("bo_i", 0u64)
+                    .arg_named("bo_o", 0u64)
+                    .build().unwrap()
+            );
+        }
+
+        if let Some(kernel) = &self.forward_kernel {
+            for batch in 0..batch_size {
+                kernel.set_arg("bo_i", (batch * self.input_len) as u64);
+                kernel.set_arg("bo_o", (batch * self.size) as u64);
+
+                unsafe {
+                    execute_kernel(pq, &kernel, (self.size, self.input_len));
+                }
+
+                self.activated_outputs.updated_gpu();
+                self.outputs.updated_gpu();
+            }
+        }
+    }
+
+    fn cpu_forward(&mut self, activated_inputs: &mut DualVec, batch_size: usize) {
+        let activated_inputs = activated_inputs.cpu().unwrap();
+
+        for batch in 0..batch_size {
+            let output_offset = batch * self.size;
+            let input_offset = batch * self.input_len;
+
+            let mut x = 0;
+            while x < self.size {
+                let outputs = self.outputs.cpu().unwrap();
+                let mut outputs = outputs.borrow_mut();
+                let output_index = x + output_offset;
+
+                outputs[output_index] = self.biases.cpu().unwrap().borrow_mut()[x];
+
+                let mut y = 0;
+                while y < self.input_len {
+                    let weight_index = (self.input_len * x) + y;
+                    let in_value = activated_inputs.borrow_mut()[y + input_offset];
+
+                    outputs[output_index] += self.weights.cpu().unwrap().borrow_mut()[weight_index] * in_value;
+                    y += 1
+                }
+                self.activated_outputs.cpu().unwrap().borrow_mut()[output_index] = self.activation.activate(outputs[output_index]);
+
+                self.activated_outputs.updated_cpu();
+                self.outputs.updated_cpu();
+
+                x += 1;
+            }
+        }
+    }
 }
 
 impl<'a> Layer<'a> for Dense<'a> {
@@ -83,74 +152,10 @@ impl<'a> Layer<'a> for Dense<'a> {
         self.ensure_batch_size(batch_size);
 
         match self.exec {
-            Executor::GPU(pq) => {
-                let outputs = self.outputs.gpu().unwrap();
-                let mut outputs = outputs.borrow_mut();
-                outputs.cmd().fill(0., None).enq();
-
-                if self.forward_kernel.is_none() {
-                    self.forward_kernel = Some(
-                        pq.kernel_builder("forward")
-                        .arg(self.input_len as u64)
-                        .arg(self.size as u64)
-                        .arg(&*self.weights.gpu().unwrap().borrow())
-                        .arg(&*self.biases.gpu().unwrap().borrow())
-                        .arg(&*activated_inputs.gpu().unwrap().borrow())
-                        .arg(&*outputs)
-                        .arg(&*self.activated_outputs.gpu().unwrap().borrow())
-                        .arg_named("bo_i", 0u64)
-                        .arg_named("bo_o", 0u64)
-                        .build().unwrap()
-                    );
-                }
-
-                if let Some(kernel) = &self.forward_kernel {
-                    for batch in 0..batch_size {
-                        kernel.set_arg("bo_i", (batch * self.input_len) as u64);
-                        kernel.set_arg("bo_o", (batch * self.size) as u64);
-
-                        unsafe {
-                            execute_kernel(pq, &kernel, (self.size, self.input_len));
-                        }
-
-                        self.activated_outputs.updated_gpu();
-                        self.outputs.updated_gpu();
-                    }
-                }
-            }
-            Executor::CPU => {
-                let activated_inputs = activated_inputs.cpu().unwrap();
-
-                for batch in 0..batch_size {
-                    let output_offset = batch * self.size;
-                    let input_offset = batch * self.input_len;
-
-                    let mut x = 0;
-                    while x < self.size {
-                        let outputs = self.outputs.cpu().unwrap();
-                        let mut outputs = outputs.borrow_mut();
-                        let output_index = x + output_offset;
-
-                        outputs[output_index] = self.biases.cpu().unwrap().borrow_mut()[x];
-
-                        let mut y = 0;
-                        while y < self.input_len {
-                            let weight_index = (self.input_len * x) + y;
-                            let in_value = activated_inputs.borrow_mut()[y + input_offset];
-
-                            outputs[output_index] += self.weights.cpu().unwrap().borrow_mut()[weight_index] * in_value;
-                            y += 1
-                        }
-                        self.activated_outputs.cpu().unwrap().borrow_mut()[output_index] = self.activation.activate(outputs[output_index]);
-
-                        self.activated_outputs.updated_cpu();
-                        self.outputs.updated_cpu();
-
-                        x += 1;
-                    }
-                }
-            }
+            Executor::GPU(pq) => self.gpu_forward(activated_inputs, batch_size, pq),
+            Executor::CPU => self.cpu_forward(activated_inputs, batch_size),
         }
+
         batch_size
     }
 
