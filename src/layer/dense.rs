@@ -80,8 +80,10 @@ impl<'a> Dense<'a> {
         outputs.cmd().fill(0., None).enq();
 
         if self.forward_kernel.is_none() {
+            let activation_id: usize = (&self.activation).into();
             self.forward_kernel = Some(
                 pq.kernel_builder("forward")
+                    .arg(activation_id as u64)
                     .arg(self.input_len as u64)
                     .arg(self.size as u64)
                     .arg(&*self.weights.gpu().unwrap().borrow())

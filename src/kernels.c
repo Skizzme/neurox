@@ -37,33 +37,53 @@ void atomicAdd_g_f_l(volatile __local float *addr, float val)
     } while( current.u32 != expected.u32 );
 }
 
-float activate(float val) {
+float activate(float val, ulong activation) {
 //    printf("v: %f, %f\n", max(val, 0.0f), val);
 //    return max(val, 0.0f);
-//    if (val > 0.0) { return val; } else { return 0.02*val; }
+//
 //    return val;
 //    return 1 / (1 + exp(-val));
 //    return 1 / (1 + exp(-val)) * 2 - 1;
 //    return 1 / (1 + exp(-val*4)) * 2 - 1;
 
-    float exp_p = exp(val);
-    float exp_n = exp(-val);
-    return (exp_p - exp_n) / (exp_p + exp_n);
+    if (activation == 1) {
+        // ReLU
+        if (val > 0.0) { return val; } else { return 0; }
+    }
+    else if (activation == 2) {
+        // TanH
+        float exp_p = exp(val);
+        float exp_n = exp(-val);
+        return (exp_p - exp_n) / (exp_p + exp_n);
+    } else {
+        // Linear
+        return val;
+    }
 
 //    return sin(val);
 }
 
-float activate_derivative(float value) {
+float activate_derivative(float value, ulong activation) {
 //    value = activate(value);
-//    if (value > 0) { return 1.0; } else { return 0.0; }
+//
 //    if (value > 0) { return 1.0; } else { return 0.02; }
 //    return 1.0;
 //    return exp(value) / pow(exp(value) + 1.0, 2.0);
 //    return (2.0*exp(value)) / pow(exp(value) + 1.0, 2.0);
 //    return (8.0*exp(4*value)) / pow(exp(4*value) + 1.0, 2.0);
 
-    float activated = activate(value);
-    return 1 - (activated * activated);
+    if (activation == 1) {
+        // ReLU
+        if (value > 0) { return 1.0; } else { return 0.0; }
+    }
+    else if (activation == 2) {
+        // TanH
+        float activated = activate(value, 2);
+        return 1 - (activated * activated);
+    } else {
+        // Linear
+        return 1.0;
+    }
 
 //    return cos(value);
 }
@@ -84,9 +104,9 @@ __kernel void random_buf(__global float* buffer, ulong randoms, float div) {
     buffer[i] = res;
 }
 
-__kernel void activation(__global float* values, __global float* target) {
+__kernel void activation(__global float* values, __global float* target, ulong activation) {
     int i = get_global_id(0);
-    target[i] = activate(values[i]);
+    target[i] = activate(values[i], activation);
 }
 
 __kernel void cost(__constant float* values, __constant float* target, __global float* output) {
@@ -125,12 +145,13 @@ __kernel void list_divide_inplace(__global float* top, float bottom) {
     top[i] = top[i]/bottom;
 }
 
-__kernel void activate_and_error_derivative_calc(__global float* values, __global float* desired, __global float* out) {
+__kernel void activate_and_error_derivative_calc(__global float* values, __global float* desired, __global float* out, ulong activation) {
     int i = get_global_id(0);
-    out[i] = error_derivative(activate(values[i]), desired[i]);
+    out[i] = error_derivative(activate(values[i], activation), desired[i]);
 }
 
 __kernel void forward(
+    ulong activation,
     ulong input_length,
     ulong layer_len,
     __constant float* weights,
@@ -173,10 +194,11 @@ __kernel void forward(
     }
     barrier(CLK_GLOBAL_MEM_FENCE);
 
-    activated_output[batched_x] = activate(output[batched_x]);
+    activated_output[batched_x] = activate(output[batched_x], activation);
 }
 
 __kernel void backward(
+    ulong activation,
     ulong input_length,
     ulong weights_offset,
     ulong biases_offset,
@@ -206,7 +228,7 @@ __kernel void backward(
     int batched_x = x + batched_offset_out;
     int batched_y = y + batched_offset_in;
 
-    float gradient = activate_derivative(layer_output[batched_x]) * sensitivities[batched_x];
+    float gradient = activate_derivative(layer_output[batched_x], activation) * sensitivities[batched_x];
 
     weight_mods[weight_index] -= (learn_rate * inputs[batched_y] * gradient);
 

@@ -98,7 +98,7 @@ impl<'a> Network<'a> {
         let mut last_exec = cpu_exec;
         for i in 0..layer_count {
             let current_exec = layer_types[i].1;
-            let next_exec = if i+1 <= layer_count {
+            let next_exec = if i+1 >= layer_count {
                 &CPU
             } else {
                 layer_types[i+1].1

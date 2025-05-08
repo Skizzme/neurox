@@ -41,7 +41,6 @@ pub fn randomize_buffer(buffer: &Buffer<f32>, max_work_size: u32, div: f32, pro_
         .expect("Failed to build rnd_kernel");
 
     unsafe {
-        println!("{}", calc_ws(max_work_size as usize, buffer.len()));
         rnd_kernel
             .cmd()
             .global_work_size(buffer.len())
@@ -81,7 +80,7 @@ pub unsafe fn execute_kernel<SD: Into<SpatialDims>>(pro_que: &ProQue, kernel: &K
         }
         _ => SpatialDims::Unspecified
     };
-    // println!("{:?} {:?}", size, wg_size);
+
     unsafe {
         kernel
             .cmd()
