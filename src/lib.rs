@@ -27,3 +27,11 @@ impl Executor {
 pub enum Optimizer {
     GradientDecent(f32),
 }
+
+impl Optimizer {
+    pub fn learn_rate(&self) -> f32 {
+        match self {
+            Optimizer::GradientDecent(lr) => *lr,
+        }
+    }
+}

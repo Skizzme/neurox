@@ -1,12 +1,22 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 
 use ocl::Buffer;
-use rand::random;
+use rand::{random, Rng, thread_rng};
 
 use crate::Executor;
 use crate::Executor::GPU;
 use crate::utils::cl_utils;
+
+
+
+fn gen_index<R: Rng + ?Sized>(rng: &mut R, ubound: usize) -> usize {
+    if ubound <= (core::u32::MAX as usize) {
+        rng.gen_range(0..ubound as u32) as usize
+    } else {
+        rng.gen_range(0..ubound)
+    }
+}
 
 #[derive(Debug)]
 pub struct DualVec {
@@ -18,16 +28,29 @@ pub struct DualVec {
 
 
 impl DualVec {
+    pub fn from_exec(exec: &Executor, len: usize) -> Self {
+        Self::from_vec((exec, exec), vec![0.; len])
+    }
     pub fn from_execs(exec: (&Executor, &Executor), len: usize) -> Self {
+        Self::from_vec(exec, vec![0.; len])
+    }
+
+    pub fn from_vec(exec: (&Executor, &Executor), vec: Vec<f32>) -> Self {
+        let len = vec.len();
+        let capacity = vec.capacity();
         let gpu = match exec {
-            (Executor::GPU(q), _) | (_, Executor::GPU(q)) => Some(Rc::new(RefCell::new(cl_utils::new_buffer(q, len)))),
+            (Executor::GPU(q), _) | (_, Executor::GPU(q)) => {
+                let buf = cl_utils::new_buffer(q, vec.len());
+                cl_utils::buf_write(&buf, &vec);
+                Some(Rc::new(RefCell::new(buf)))
+            },
             _ => None,
         };
         // Ensures that only a copy on both the GPU and CPU are made only if it will
         // be used on both, otherwise it would waste memory creating unused copies.
         let cpu = match exec {
-            (Executor::CPU, _) | (_, Executor::CPU) => Some(Rc::new(RefCell::new(vec![0.; len]))),
-            _ => None,
+            (Executor::CPU, _) | (_, Executor::CPU) => Some(Rc::new(RefCell::new(vec))),
+            _ => { None },
         };
 
         DualVec {
@@ -36,6 +59,26 @@ impl DualVec {
             cpu: (cpu, false),
             gpu: (gpu, false),
         }
+    }
+
+    pub fn shuffle_with(&mut self, other: &mut DualVec) {
+        if self.len() != other.len() {
+            return;
+        }
+
+        for i in (1..self.len()).rev() {
+            // invariant: elements with index > i have been locked in place.
+            let new_index = gen_index(&mut thread_rng(), i + 1);
+            let a = self.cpu().unwrap();
+            let mut a = a.borrow_mut();
+            a.swap(i, new_index);
+            let b = other.cpu().unwrap();
+            let mut b = b.borrow_mut();
+            b.swap(i, new_index);
+        }
+
+        self.updated_cpu();
+        other.updated_cpu();
     }
 
     pub fn randomize(&mut self, exec: &Executor) {
@@ -54,21 +97,6 @@ impl DualVec {
                     self.updated_cpu();
                 }
             }
-        }
-    }
-
-    pub fn from_exec(exec: &Executor, len: usize) -> Self {
-        DualVec {
-            len,
-            capacity: len,
-            cpu: (match exec {
-                Executor::GPU(_) => None,
-                Executor::CPU => Some(Rc::new(RefCell::new(vec![0.; len]))),
-            }, false),
-            gpu: (match exec {
-                Executor::GPU(q) => Some(Rc::new(RefCell::new(cl_utils::new_buffer(q, len)))),
-                Executor::CPU => None,
-            }, false)
         }
     }
 
@@ -108,6 +136,17 @@ impl DualVec {
             self.gpu.1 = false;
         }
         self.cpu.0.clone()
+    }
+
+    pub fn cpu_borrow(&mut self) -> Option<RefMut<'_, Vec<f32>>> {
+        self.cpu();
+        self.cpu.0.as_ref().map(|cell| cell.borrow_mut())
+    }
+
+
+    pub fn gpu_borrow(&mut self) -> Option<RefMut<'_, Buffer<f32>>> {
+        self.gpu();
+        self.gpu.0.as_ref().map(|cell| cell.borrow_mut())
     }
 
     pub fn updated_gpu(&mut self) {

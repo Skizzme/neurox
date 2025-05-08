@@ -27,7 +27,7 @@ impl<'a> Layer<'a> for Attention<'_> {
         todo!()
     }
 
-    fn backward(&mut self, next_gradients: &DualVec, optimizer: &Optimizer) {
+    fn backward(&mut self, next_gradients: &mut DualVec, optimizer: &Optimizer) {
         todo!()
     }
 

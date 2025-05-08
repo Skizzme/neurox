@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::dual_vec::DualVec;
-use crate::Executor;
+use crate::{Executor, Optimizer};
 use crate::Executor::{CPU, GPU};
 use crate::layer::{Layer, LayerType};
 use crate::layer::attention::Attention;
@@ -51,6 +51,13 @@ impl<'a> Network<'a> {
             layer.borrow_mut().forward(self.layers[i-1].borrow_mut().activated_output());
         }
         self.layers.last().unwrap().borrow_mut().activated_output().clone()
+    }
+
+    pub fn train(&mut self, target: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: u32) {
+        // let
+        // for epoch in 0..epochs {
+        //
+        // }
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

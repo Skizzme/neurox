@@ -160,8 +160,43 @@ impl<'a> Layer<'a> for Dense<'a> {
         batch_size
     }
 
-    fn backward(&mut self, next_sensitivities: &DualVec, optimizer: &Optimizer)  {
-        todo!()
+    fn backward(&mut self, in_sensitivities: &mut DualVec, optimizer: &Optimizer)  {
+        let batch_size = in_sensitivities.len() / self.size;
+
+        match self.exec {
+            Executor::GPU(_) => {}
+            Executor::CPU => {
+                let lr = optimizer.learn_rate();
+
+                let in_sensitivities = in_sensitivities.cpu_borrow().unwrap();
+
+                let mut outputs = self.outputs.cpu_borrow().unwrap();
+
+                let mut sensitivities = self.sensitivities.cpu_borrow().unwrap();
+
+                let biases = self.biases.cpu_borrow().unwrap();
+                let weights = self.weights.cpu_borrow().unwrap();
+
+                let mut weight_mods = self.weight_mods.cpu_borrow().unwrap();
+                let mut bias_mods = self.bias_mods.cpu_borrow().unwrap();
+
+                for x in 0..self.size {
+                    // println!("[{:?}] {}", self.layer_sensitivities[i], x);
+                    let gradient = self.activation.derivative(outputs[x]) * in_sensitivities[x];
+
+                    let bias_index = x;
+                    let new_bias = biases[bias_index] - (lr * gradient);
+                    bias_mods[bias_index] += new_bias - biases[bias_index];
+                    for y in 0..self.input_len {
+                        let weight_index = (self.input_len * x) + y;
+
+                        let new_weight = weights[weight_index] - (lr * self.activation.activate(outputs[y]) * gradient);
+                        weight_mods[weight_index] += new_weight - weights[weight_index];
+                        sensitivities[y] += gradient * weights[weight_index];
+                    }
+                }
+            }
+        }
     }
 
     fn activated_output(&mut self) -> &mut DualVec {

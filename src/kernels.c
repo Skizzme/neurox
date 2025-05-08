@@ -159,8 +159,8 @@ __kernel void forward(
     __constant float* input,
     __global float* output,
     __global float* activated_output,
-    ulong batched_offset_in,
-    ulong batched_offset_out
+    ulong offset_in,
+    ulong offset_out
 ) {
     int x = get_global_id(0); // out dims
     int y = get_global_id(1); // in dims
@@ -172,29 +172,31 @@ __kernel void forward(
 
     __local float local_outputs[128][128];
 
-    int batched_x = x + batched_offset_out;
-    int batched_y = y + batched_offset_in;
+    int offset_x = x + offset_out;
+    int offset_y = y + offset_in;
 
-    float in = input[batched_y];
+    float in = input[offset_y];
 
+    // calculate each local multiplication in a local array
     local_outputs[wg_y][wg_x] = in*weights[w_ind];
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
     if (wg_y == 0) {
+        // sum each local array together into the global array to spend less time waiting for the atomic to unlock
         float sum = 0;
         for (int i = 0; i < wg_size_y; i++) {
             sum += local_outputs[i][wg_x];
         }
-        atomicAdd_g_f(&output[batched_x], sum);
+        atomicAdd_g_f(&output[offset_x], sum);
     }
 
     if (y == 0) {
-        atomicAdd_g_f(&output[batched_x], biases[x]);
+        atomicAdd_g_f(&output[offset_x], biases[x]);
     }
     barrier(CLK_GLOBAL_MEM_FENCE);
 
-    activated_output[batched_x] = activate(output[batched_x], activation);
+    activated_output[offset_x] = activate(output[offset_x], activation);
 }
 
 __kernel void backward(
@@ -211,8 +213,8 @@ __kernel void backward(
     __global float* weight_mods,
     __global float* bias_mods,
     __global float* gradients_out,
-    ulong batched_offset_in,
-    ulong batched_offset_out
+    ulong offset_in,
+    ulong offset_out
 ) {
     int x = get_global_id(0); // out dims
     int y = get_global_id(1); // in dims
@@ -225,12 +227,12 @@ __kernel void backward(
 
     __local float local_gradients[128][128];
 
-    int batched_x = x + batched_offset_out;
-    int batched_y = y + batched_offset_in;
+    int offset_x = x + offset_out;
+    int offset_y = y + offset_in;
 
-    float gradient = activate_derivative(layer_output[batched_x], activation) * sensitivities[batched_x];
+    float gradient = activate_derivative(layer_output[offset_x], activation) * sensitivities[offset_x];
 
-    weight_mods[weight_index] -= (learn_rate * inputs[batched_y] * gradient);
+    weight_mods[weight_index] -= (learn_rate * inputs[offset_y] * gradient);
 
     if (y == 0) {
         bias_mods[bias_index] -= (learn_rate * gradient);
@@ -245,7 +247,7 @@ __kernel void backward(
         for (int i = 0; i < wg_size_x; i++) {
             sum += local_gradients[wg_y][i];
         }
-        atomicAdd_g_f(&gradients_out[batched_y], sum);
+        atomicAdd_g_f(&gradients_out[offset_y], sum);
     }
 
 }

@@ -16,7 +16,7 @@ pub mod activation;
 
 pub trait Layer<'a> {
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize;
-    fn backward(&mut self, next_sensitivities: &DualVec, optimizer: &Optimizer);
+    fn backward(&mut self, next_sensitivities: &mut DualVec, optimizer: &Optimizer);
     fn activated_output(&mut self) -> &mut DualVec;
 
     fn as_bytes(&mut self, writer: &mut VecWriter);
