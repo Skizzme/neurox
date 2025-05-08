@@ -26,7 +26,6 @@ pub struct Dense<'a> {
     weight_mods: DualVec,
     bias_mods: DualVec,
 
-    // TODO change this to use max size buffer instead of hashmap
     outputs: DualVec,
     activated_outputs: DualVec,
     sensitivities: DualVec,
