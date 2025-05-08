@@ -8,6 +8,7 @@ use crate::{Executor, Optimizer};
 use crate::dual_vec::DualVec;
 use crate::layer::activation::Activation;
 use crate::layer::Layer;
+use crate::utils::cl_utils::execute_kernel;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 #[derive(Debug)]
@@ -30,7 +31,7 @@ pub struct Dense<'a> {
     activated_outputs: DualVec,
     sensitivities: DualVec,
 
-    forward_kernels: HashMap<u32, Kernel>,
+    forward_kernel: Option<Kernel>,
 }
 
 impl<'a> Dense<'a> {
@@ -57,10 +58,12 @@ impl<'a> Dense<'a> {
 
             weight_mods: DualVec::from_exec(c, inputs * size),
             bias_mods: DualVec::from_exec(c, size),
-            forward_kernels: HashMap::new(),
+            forward_kernel: None,
         };
+
         a.weights.randomize(c);
         a.biases.randomize(c);
+
         a
     }
 
@@ -80,8 +83,40 @@ impl<'a> Layer<'a> for Dense<'a> {
         self.ensure_batch_size(batch_size);
 
         match self.exec {
-            Executor::GPU(_) => {
+            Executor::GPU(pq) => {
+                let outputs = self.outputs.gpu().unwrap();
+                let mut outputs = outputs.borrow_mut();
+                outputs.cmd().fill(0., None).enq();
 
+                if self.forward_kernel.is_none() {
+                    self.forward_kernel = Some(
+                        pq.kernel_builder("forward")
+                        .arg(self.input_len as u64)
+                        .arg(self.size as u64)
+                        .arg(&*self.weights.gpu().unwrap().borrow())
+                        .arg(&*self.biases.gpu().unwrap().borrow())
+                        .arg(&*activated_inputs.gpu().unwrap().borrow())
+                        .arg(&*outputs)
+                        .arg(&*self.activated_outputs.gpu().unwrap().borrow())
+                        .arg_named("bo_i", 0u64)
+                        .arg_named("bo_o", 0u64)
+                        .build().unwrap()
+                    );
+                }
+
+                if let Some(kernel) = &self.forward_kernel {
+                    for batch in 0..batch_size {
+                        kernel.set_arg("bo_i", (batch * self.input_len) as u64);
+                        kernel.set_arg("bo_o", (batch * self.size) as u64);
+
+                        unsafe {
+                            execute_kernel(pq, &kernel, (self.size, self.input_len));
+                        }
+
+                        self.activated_outputs.updated_gpu();
+                        self.outputs.updated_gpu();
+                    }
+                }
             }
             Executor::CPU => {
                 let activated_inputs = activated_inputs.cpu().unwrap();
@@ -107,6 +142,10 @@ impl<'a> Layer<'a> for Dense<'a> {
                             y += 1
                         }
                         self.activated_outputs.cpu().unwrap().borrow_mut()[output_index] = self.activation.activate(outputs[output_index]);
+
+                        self.activated_outputs.updated_cpu();
+                        self.outputs.updated_cpu();
+
                         x += 1;
                     }
                 }
@@ -155,6 +194,9 @@ impl<'a> Layer<'a> for Dense<'a> {
         for i in 0..biases.len() {
             biases[i] = bytes.f32();
         }
+
+        l.weights.updated_cpu();
+        l.biases.updated_cpu();
 
         Rc::new(RefCell::new(l))
     }

@@ -40,12 +40,18 @@ impl DualVec {
 
     pub fn randomize(&mut self, exec: &Executor) {
         match exec {
-            GPU(_) => {}
+            GPU(p) => {
+                if let Some(buf) = &self.gpu.0 {
+                    cl_utils::randomize_buffer(&*buf.borrow(), 256, self.len as f32/ 10., p);
+                    self.updated_gpu();
+                }
+            }
             Executor::CPU => {
                 if let Some(vec) = self.cpu() {
                     for i in 0..self.len {
                         vec.borrow_mut()[i] = (random::<f32>() * 2.0 - 1.0) / self.len as f32 * 4.;
                     }
+                    self.updated_cpu();
                 }
             }
         }
@@ -79,34 +85,38 @@ impl DualVec {
 
     pub fn gpu(&mut self) -> Option<Rc<RefCell<Buffer<f32>>>> {
         if self.gpu.0.is_none() {
+            // Can't create a GPU buffer, since a Queue is required and should have been when creating the buffer
             return None;
         }
 
-        if !self.gpu.1 && self.cpu.1 {
+        if self.cpu.1 {
             cl_utils::buf_write(&*self.gpu.0.clone().unwrap().borrow_mut(), &*self.cpu.0.clone().unwrap().borrow_mut());
+            self.cpu.1 = false;
         }
         self.gpu.0.clone()
     }
 
     pub fn cpu(&mut self) -> Option<Rc<RefCell<Vec<f32>>>> {
-        // TODO correct this. It should create anything necessary instead of returning None
         if self.cpu.0.is_none() {
-            return None;
+            let mut vec = vec![0.; self.len];
+            vec.reserve_exact(self.capacity - self.len);
+            self.cpu.0.replace(Rc::new(RefCell::new(vec)));
         }
 
-        if !self.cpu.1 && self.gpu.1 {
+        if self.gpu.1 {
             cl_utils::read_to(&*self.gpu.0.clone().unwrap().borrow_mut(), &mut *self.cpu.0.clone().unwrap().borrow_mut());
+            self.gpu.1 = false;
         }
         self.cpu.0.clone()
     }
 
-    pub fn update_gpu(&mut self) {
+    pub fn updated_gpu(&mut self) {
         if self.gpu.0.is_some() {
             self.gpu.1 = true;
         }
     }
 
-    pub fn update_cpu(&mut self) {
+    pub fn updated_cpu(&mut self) {
         if self.cpu.0.is_some() {
             self.cpu.1 = true;
         }
@@ -134,18 +144,24 @@ impl DualVec {
     /// Expands the necessary GPU and/or CPU storage to have a capacity of size
     pub fn expand_to(&mut self, size: usize) {
         if let Some(gpu) = &self.gpu.0 {
-            let buf = gpu.borrow_mut();
-            if buf.len() < size {
-                let new_buf = Buffer::builder()
-                    .queue(buf.default_queue().unwrap().clone())
-                    .len(size)
-                    .build()
-                    .expect("Failed to create new buffer");
+            let mut new_buf = None;
+            {
+                let buf = gpu.borrow_mut();
+                if buf.len() < size {
+                    let tmp_buffer = Buffer::builder()
+                        .queue(buf.default_queue().unwrap().clone())
+                        .len(size)
+                        .build()
+                        .expect("Failed to create new buffer");
 
-                buf.copy(&new_buf, None, None).enq()
-                    .expect("Failed to copy buffer");
+                    buf.copy(&tmp_buffer, None, None).enq()
+                        .expect("Failed to copy buffer");
 
-                gpu.replace(new_buf);
+                    new_buf = Some(tmp_buffer);
+                }
+            }
+            if let Some(buf) = new_buf {
+                gpu.replace(buf);
             }
         }
 

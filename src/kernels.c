@@ -131,15 +131,11 @@ __kernel void activate_and_error_derivative_calc(__global float* values, __globa
 }
 
 __kernel void forward(
-    int apply_activations_in,
     ulong input_length,
     ulong layer_len,
-    ulong weights_offset,
-    ulong biases_offset,
     __constant float* weights,
     __constant float* biases,
     __constant float* input,
-    __constant float* activated_input,
     __global float* output,
     __global float* activated_output,
     ulong batched_offset_in,
@@ -147,7 +143,7 @@ __kernel void forward(
 ) {
     int x = get_global_id(0); // out dims
     int y = get_global_id(1); // in dims
-    int w_ind = (input_length * x) + y + weights_offset;
+    int w_ind = (input_length * x) + y;
     int wg_size_x = get_local_size(0);
     int wg_size_y = get_local_size(1);
     int wg_x = get_local_id(0);
@@ -159,9 +155,6 @@ __kernel void forward(
     int batched_y = y + batched_offset_in;
 
     float in = input[batched_y];
-    if (apply_activations_in == 1) {
-        in = activated_input[batched_y];
-    }
 
     local_outputs[wg_y][wg_x] = in*weights[w_ind];
 
@@ -176,7 +169,7 @@ __kernel void forward(
     }
 
     if (y == 0) {
-        atomicAdd_g_f(&output[batched_x], biases[x+biases_offset]);
+        atomicAdd_g_f(&output[batched_x], biases[x]);
     }
     barrier(CLK_GLOBAL_MEM_FENCE);
 
