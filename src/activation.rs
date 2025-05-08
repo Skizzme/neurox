@@ -4,6 +4,7 @@ pub enum Activation {
     Linear,
     ReLU,
     TanH,
+    Sigmoid,
 }
 
 impl Activation {
@@ -12,6 +13,7 @@ impl Activation {
             Activation::Linear => x,
             Activation::ReLU => if x > 0. { x } else { 0. },
             Activation::TanH => (x.exp() - (-x).exp()) / (x.exp() + (-x).exp()),
+            Activation::Sigmoid => 1. / (1. + (-x).exp()),
         }
     }
 
@@ -21,7 +23,11 @@ impl Activation {
             Activation::ReLU => if x > 0. { 1. } else { 0. },
             Activation::TanH => {
                 let b = self.activate(x);
-                1.0 - (b * b)
+                1. - (b * b)
+            }
+            Activation::Sigmoid => {
+                let b = self.activate(x);
+                b * (1. - b)
             }
         }
     }
@@ -32,6 +38,7 @@ impl From<usize> for Activation {
         match value {
             1 => Activation::ReLU,
             2 => Activation::TanH,
+            3 => Activation::Sigmoid,
             _ => Activation::Linear,
         }
     }
@@ -43,6 +50,7 @@ impl Into<usize> for &Activation {
             Activation::Linear => 0,
             Activation::ReLU => 1,
             Activation::TanH => 2,
+            Activation::Sigmoid => 3,
         }
     }
 }

@@ -23,6 +23,10 @@ impl<'a> Attention<'a> {
 }
 
 impl<'a> Layer<'a> for Attention<'_> {
+    fn dynamic_forward(&mut self, positions: &Vec<usize>, inputs: &mut DualVec) {
+        todo!()
+    }
+
     fn forward(&mut self, inputs: &mut DualVec) -> usize {
         todo!()
     }
@@ -52,6 +56,14 @@ impl<'a> Layer<'a> for Attention<'_> {
     }
 
     fn weights(&self) -> &DualVec {
+        todo!()
+    }
+
+    fn input_size(&self) -> usize {
+        todo!()
+    }
+
+    fn output_size(&self) -> usize {
         todo!()
     }
 }

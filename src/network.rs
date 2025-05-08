@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use rand::{random, Rng, thread_rng};
 
 use crate::dual_vec::DualVec;
 use crate::{Executor, Optimizer};
@@ -53,11 +54,43 @@ impl<'a> Network<'a> {
         self.layers.last().unwrap().borrow_mut().activated_output().clone()
     }
 
-    pub fn train(&mut self, target: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: u32) {
-        // let
-        // for epoch in 0..epochs {
-        //
-        // }
+    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: usize) {
+        let input_size = self.layers.first().unwrap().borrow().input_size();
+        let output_size = self.layers.last().unwrap().borrow().output_size();
+
+        let samples = inputs.len() / input_size;
+        if (targets.len() / output_size != samples) {
+            // Checks if the inputs and targets contain the same amount of samples
+            // TODO make this method return an error
+            panic!("Input sample count does not match output sample count");
+            return;
+        }
+
+        for epoch in 0..epochs {
+            for i in 0..samples / batch_size {
+                let mut batch_inputs = Vec::new();
+                let mut batch_outputs = Vec::new();
+                for batch in 0..batch_size {
+                    // TODO This should probably not be just random, and shouldn't pick the same sample more than once within the same batch
+                    let sample = (random::<f64>() * samples as f64) as usize;
+                    println!("sample: {}", sample);
+                    batch_inputs.push(sample * input_size);
+                    batch_outputs.push(sample * output_size);
+                }
+
+                println!("{:?} {:?}", batch_inputs, batch_outputs);
+
+                let mut batch_size = self.layers[0].borrow_mut().dynamic_forward(&batch_inputs, inputs);
+                for i in 1..self.layers.len() {
+                    let layer = self.layers[i].clone();
+                    layer.borrow_mut().forward(self.layers[i - 1].borrow_mut().activated_output());
+                }
+                let batch_ouput = self.layers.last().unwrap().borrow_mut().activated_output().clone();
+
+                println!("{:?}", batch_ouput);
+                println!("{i}")
+            }
+        }
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

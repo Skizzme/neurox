@@ -6,7 +6,7 @@ use ocl::{Kernel, ProQue};
 
 use crate::{Executor, Optimizer};
 use crate::dual_vec::DualVec;
-use crate::layer::activation::Activation;
+use crate::activation::Activation;
 use crate::layer::Layer;
 use crate::utils::cl_utils::execute_kernel;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
@@ -74,7 +74,7 @@ impl<'a> Dense<'a> {
         }
     }
 
-    fn gpu_forward(&mut self, activated_inputs: &mut DualVec, batch_size: usize, pq: &ProQue) {
+    fn gpu_forward(&mut self, positions: &Vec<usize>, activated_inputs: &mut DualVec, pq: &ProQue) {
         let outputs = self.outputs.gpu().unwrap();
         let mut outputs = outputs.borrow_mut();
         outputs.cmd().fill(0., None).enq();
@@ -98,8 +98,8 @@ impl<'a> Dense<'a> {
         }
 
         if let Some(kernel) = &self.forward_kernel {
-            for batch in 0..batch_size {
-                kernel.set_arg("bo_i", (batch * self.input_len) as u64);
+            for batch in 0..positions.len() {
+                kernel.set_arg("bo_i", positions[batch] as u64);
                 kernel.set_arg("bo_o", (batch * self.size) as u64);
 
                 unsafe {
@@ -112,12 +112,14 @@ impl<'a> Dense<'a> {
         }
     }
 
-    fn cpu_forward(&mut self, activated_inputs: &mut DualVec, batch_size: usize) {
+    fn cpu_forward(&mut self, positions: &Vec<usize>, activated_inputs: &mut DualVec) {
         let activated_inputs = activated_inputs.cpu().unwrap();
 
-        for batch in 0..batch_size {
+        for batch in 0..positions.len() {
             let output_offset = batch * self.size;
-            let input_offset = batch * self.input_len;
+            let input_offset = positions[batch];
+
+            println!("{} {}", input_offset, output_offset);
 
             let mut x = 0;
             while x < self.size {
@@ -147,15 +149,25 @@ impl<'a> Dense<'a> {
 }
 
 impl<'a> Layer<'a> for Dense<'a> {
+    fn dynamic_forward(&mut self, positions: &Vec<usize>, inputs: &mut DualVec) {
+
+        self.ensure_batch_size(positions.len());
+
+        match self.exec {
+            Executor::GPU(pq) => self.gpu_forward(positions, inputs, pq),
+            Executor::CPU => self.cpu_forward(positions, inputs),
+        }
+    }
+
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize {
         let batch_size = activated_inputs.len() / self.input_len;
 
-        self.ensure_batch_size(batch_size);
-
-        match self.exec {
-            Executor::GPU(pq) => self.gpu_forward(activated_inputs, batch_size, pq),
-            Executor::CPU => self.cpu_forward(activated_inputs, batch_size),
+        let mut positions = vec![];
+        for i in 0..batch_size {
+            positions.push(i * self.input_len);
         }
+
+        self.dynamic_forward(&positions, activated_inputs);
 
         batch_size
     }
@@ -252,5 +264,13 @@ impl<'a> Layer<'a> for Dense<'a> {
 
     fn weights(&self) -> &DualVec {
         &self.weights
+    }
+
+    fn input_size(&self) -> usize {
+        self.input_len
+    }
+
+    fn output_size(&self) -> usize {
+        self.size
     }
 }

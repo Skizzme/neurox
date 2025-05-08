@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use activation::Activation;
+use crate::activation::Activation;
 
 use crate::{Executor, Optimizer};
 use crate::dual_vec::DualVec;
@@ -12,9 +12,9 @@ use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 pub mod dense;
 pub mod attention;
-pub mod activation;
 
 pub trait Layer<'a> {
+    fn dynamic_forward(&mut self, positions: &Vec<usize>, inputs: &mut DualVec);
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize;
     fn backward(&mut self, next_sensitivities: &mut DualVec, optimizer: &Optimizer);
     fn activated_output(&mut self) -> &mut DualVec;
@@ -26,6 +26,8 @@ pub trait Layer<'a> {
     fn exec(&self) -> &Executor;
 
     fn weights(&self) -> &DualVec;
+    fn input_size(&self) -> usize;
+    fn output_size(&self) -> usize;
 }
 
 #[derive(Clone, Debug)]

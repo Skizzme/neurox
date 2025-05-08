@@ -1,13 +1,14 @@
 #![allow(unused)]
 
 use ocl::ProQue;
-
 use crate::Executor::GPU;
 
 pub mod dual_vec;
 pub mod layer;
 pub mod utils;
 pub mod network;
+pub mod error;
+pub mod activation;
 
 
 #[derive(Debug)]
