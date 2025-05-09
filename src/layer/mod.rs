@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::activation::Activation;
-
 use crate::{Executor, Optimizer};
+use crate::activation::Activation;
 use crate::dual_vec::DualVec;
 use crate::layer::attention::Attention;
 use crate::layer::dense::Dense;

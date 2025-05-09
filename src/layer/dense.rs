@@ -1,12 +1,11 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use ocl::{Kernel, ProQue};
 
 use crate::{Executor, Optimizer};
-use crate::dual_vec::DualVec;
 use crate::activation::Activation;
+use crate::dual_vec::DualVec;
 use crate::layer::Layer;
 use crate::utils::cl_utils::execute_kernel;
 use crate::utils::vec_utils::{CursorReader, VecWriter};

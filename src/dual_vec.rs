@@ -8,8 +8,6 @@ use crate::Executor;
 use crate::Executor::GPU;
 use crate::utils::cl_utils;
 
-
-
 fn gen_index<R: Rng + ?Sized>(rng: &mut R, ubound: usize) -> usize {
     if ubound <= (core::u32::MAX as usize) {
         rng.gen_range(0..ubound as u32) as usize

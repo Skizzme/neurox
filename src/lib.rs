@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use ocl::ProQue;
+
 use crate::Executor::GPU;
 
 pub mod dual_vec;

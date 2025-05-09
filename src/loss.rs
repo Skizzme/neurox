@@ -1,8 +1,8 @@
 use crate::dual_vec::DualVec;
-use crate::Executor;
-use crate::Executor::GPU;
 use crate::error::Error;
 use crate::error::Error::UnavailableBuffer;
+use crate::Executor;
+use crate::Executor::GPU;
 
 pub enum Loss {
     Categorical,

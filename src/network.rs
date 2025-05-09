@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use rand::{random, Rng, thread_rng};
 
-use crate::dual_vec::DualVec;
+use rand::random;
+
 use crate::{Executor, Optimizer};
+use crate::dual_vec::DualVec;
 use crate::error::{Error, MismatchError, NetworkError};
 use crate::Executor::{CPU, GPU};
 use crate::layer::{Layer, LayerType};

@@ -1,16 +1,11 @@
 #![allow(unused)]
 
-use std::fs;
-use std::fs::read;
-use std::time::Instant;
 use neurox::{Executor, Optimizer};
-use neurox::activation::Activation::{Linear, ReLU, TanH};
+use neurox::activation::Activation::Linear;
 use neurox::dual_vec::DualVec;
-use neurox::error::Error;
 use neurox::Executor::CPU;
 use neurox::layer::LayerType::Dense;
 use neurox::network::Network;
-use neurox::utils::cl_utils;
 
 pub fn main() {
     let gpu = &Executor::gpu();
