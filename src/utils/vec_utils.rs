@@ -13,19 +13,19 @@ impl<'a> CursorReader<'a> {
 
     pub fn f32(&mut self) -> f32 {
         let mut b = [0u8; 4];
-        self.cursor.read_exact(&mut b).unwrap();
+        self.cursor.read_exact(&mut b);
         f32::from_be_bytes(b)
     }
 
     pub fn usize(&mut self) -> usize {
         let mut b = [0u8; 8];
-        self.cursor.read_exact(&mut b).unwrap();
+        self.cursor.read_exact(&mut b);
         usize::from_be_bytes(b)
     }
 
     pub fn i32(&mut self) -> i32 {
         let mut b = [0u8; 4];
-        self.cursor.read_exact(&mut b).unwrap();
+        self.cursor.read_exact(&mut b);
         i32::from_be_bytes(b)
     }
 

@@ -4,6 +4,7 @@ use rand::{random, Rng, thread_rng};
 
 use crate::dual_vec::DualVec;
 use crate::{Executor, Optimizer};
+use crate::error::{Error, MismatchError, NetworkError};
 use crate::Executor::{CPU, GPU};
 use crate::layer::{Layer, LayerType};
 use crate::layer::attention::Attention;
@@ -16,7 +17,10 @@ pub struct Network<'a> {
 
 impl<'a> Network<'a> {
 
-    pub fn new(mut input_size: usize, layers_types: &'a Vec<(&'a Executor, LayerType)>) -> Self {
+    pub fn new(mut input_size: usize, layers_types: &'a Vec<(&'a Executor, LayerType)>) -> Result<Self, Error> {
+        if layers_types.len() == 0 {
+            return Err(Error::Network(NetworkError::ZeroLayers))
+        }
         let mut layers = vec![];
         for i in 0..layers_types.len() {
             let l_type = &layers_types[i].1;
@@ -40,9 +44,9 @@ impl<'a> Network<'a> {
             input_size = output_size;
         }
 
-        Network {
+        Ok(Network {
             layers,
-        }
+        })
     }
 
     pub fn predict(&mut self, inputs: &mut DualVec) -> DualVec {
@@ -54,18 +58,16 @@ impl<'a> Network<'a> {
         self.layers.last().unwrap().borrow_mut().activated_output().clone()
     }
 
-    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: usize) {
+    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: usize) -> Result<f32, Error> {
         let input_size = self.layers.first().unwrap().borrow().input_size();
         let output_size = self.layers.last().unwrap().borrow().output_size();
 
         let samples = inputs.len() / input_size;
         if (targets.len() / output_size != samples) {
-            // Checks if the inputs and targets contain the same amount of samples
-            // TODO make this method return an error
-            panic!("Input sample count does not match output sample count");
-            return;
+            return Err(Error::Mismatch(MismatchError::Sample))
         }
 
+        let mut loss = f32::INFINITY;
         for epoch in 0..epochs {
             for i in 0..samples / batch_size {
                 let mut batch_inputs = Vec::new();
@@ -91,6 +93,8 @@ impl<'a> Network<'a> {
                 println!("{i}")
             }
         }
+
+        Ok(loss)
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

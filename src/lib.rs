@@ -7,8 +7,9 @@ pub mod dual_vec;
 pub mod layer;
 pub mod utils;
 pub mod network;
-pub mod error;
+pub mod loss;
 pub mod activation;
+pub mod error;
 
 
 #[derive(Debug)]

@@ -7,6 +7,7 @@ edition = "2024"
 ocl = "0.19.7"
 rand = "0.8.5"
 log = "0.4.25"
+thiserror = "1.0.69"
 
 [workspace]
 members = [

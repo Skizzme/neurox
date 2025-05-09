@@ -236,16 +236,16 @@ impl<'a> Layer<'a> for Dense<'a> {
     fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> {
         let mut l = Dense::new(exec, bytes.usize(), bytes.usize(), bytes.indexed());
 
-        let w = l.weights.cpu().unwrap();
-        let mut weights = w.borrow_mut();
-        for i in 0..weights.len() {
-            weights[i] = bytes.f32();
+        if let Some(mut weights) = l.weights.cpu_borrow() {
+            for i in 0..weights.len() {
+                weights[i] = bytes.f32();
+            }
         }
 
-        let b = l.biases.cpu().unwrap();
-        let mut biases = b.borrow_mut();
-        for i in 0..biases.len() {
-            biases[i] = bytes.f32();
+        if let Some(mut biases) = l.biases.cpu_borrow() {
+            for i in 0..biases.len() {
+                biases[i] = bytes.f32();
+            }
         }
 
         l.weights.updated_cpu();

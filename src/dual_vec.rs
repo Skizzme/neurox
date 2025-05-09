@@ -69,12 +69,10 @@ impl DualVec {
         for i in (1..self.len()).rev() {
             // invariant: elements with index > i have been locked in place.
             let new_index = gen_index(&mut thread_rng(), i + 1);
-            let a = self.cpu().unwrap();
-            let mut a = a.borrow_mut();
-            a.swap(i, new_index);
-            let b = other.cpu().unwrap();
-            let mut b = b.borrow_mut();
-            b.swap(i, new_index);
+            if let (Some(mut a), Some(mut b)) = (self.cpu_borrow(), other.cpu_borrow()) {
+                a.swap(i, new_index);
+                b.swap(i, new_index);
+            }
         }
 
         self.updated_cpu();
