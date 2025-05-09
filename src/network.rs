@@ -64,7 +64,7 @@ impl<'a> Network<'a> {
 
         let samples = inputs.len() / input_size;
         if (targets.len() / output_size != samples) {
-            return Err(Error::Mismatch(MismatchError::Sample))
+            return Err(Error::Mismatch(MismatchError::Sample(samples, targets.len() / output_size)))
         }
 
         let mut loss = f32::INFINITY;

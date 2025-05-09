@@ -11,8 +11,8 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MismatchError {
-    #[error("Input sample count does not match output sample count")]
-    Sample,
+    #[error("Input sample count ({0}) does not match output sample count ({1})")]
+    Sample(usize, usize),
 }
 
 #[derive(Debug, thiserror::Error)]
