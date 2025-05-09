@@ -10,6 +10,7 @@ use crate::Executor::{CPU, GPU};
 use crate::layer::{Layer, LayerType};
 use crate::layer::attention::Attention;
 use crate::layer::dense::Dense;
+use crate::loss::Loss;
 use crate::utils::vec_utils::{CursorReader, VecWriter};
 
 pub struct Network<'a> {
@@ -59,7 +60,7 @@ impl<'a> Network<'a> {
         self.layers.last().unwrap().borrow_mut().activated_output().clone()
     }
 
-    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, epochs: u32, batch_size: usize) -> Result<f32, Error> {
+    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, loss: Loss, epochs: u32, batch_size: usize) -> Result<f32, Error> {
         let input_size = self.layers.first().unwrap().borrow().input_size();
         let output_size = self.layers.last().unwrap().borrow().output_size();
 
@@ -68,34 +69,33 @@ impl<'a> Network<'a> {
             return Err(Error::Mismatch(MismatchError::Sample(samples, targets.len() / output_size)))
         }
 
-        let mut loss = f32::INFINITY;
+        let mut best_loss = f32::INFINITY;
         for epoch in 0..epochs {
             for i in 0..samples / batch_size {
-                let mut batch_inputs = Vec::new();
-                let mut batch_outputs = Vec::new();
+                let mut input_indices = Vec::new();
+                let mut output_indices = Vec::new();
                 for batch in 0..batch_size {
                     // TODO This should probably not be just random, and shouldn't pick the same sample more than once within the same batch
                     let sample = (random::<f64>() * samples as f64) as usize;
                     println!("sample: {}", sample);
-                    batch_inputs.push(sample * input_size);
-                    batch_outputs.push(sample * output_size);
+                    input_indices.push(sample * input_size);
+                    output_indices.push(sample * output_size);
                 }
 
-                println!("{:?} {:?}", batch_inputs, batch_outputs);
-
-                let mut batch_size = self.layers[0].borrow_mut().dynamic_forward(&batch_inputs, inputs);
+                self.layers[0].borrow_mut().dynamic_forward(&input_indices, inputs);
                 for i in 1..self.layers.len() {
                     let layer = self.layers[i].clone();
                     layer.borrow_mut().forward(self.layers[i - 1].borrow_mut().activated_output());
                 }
-                let batch_ouput = self.layers.last().unwrap().borrow_mut().activated_output().clone();
+                let mut batch_ouput = self.layers.last().unwrap().borrow_mut().activated_output().clone();
 
-                println!("{:?}", batch_ouput);
-                println!("{i}")
+                println!("in {:?} out {:?} target {:?} actual {:?}", input_indices, output_indices, targets, batch_ouput);
+                let res = loss.calculate(&CPU, &mut batch_ouput, targets, &output_indices, batch_size);
+                println!("error {:?}", res);
             }
         }
 
-        Ok(loss)
+        Ok(best_loss)
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

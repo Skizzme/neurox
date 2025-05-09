@@ -10,7 +10,7 @@ pub enum Loss {
 }
 
 impl Loss {
-    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec) -> Result<f32, Error> {
+    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>, batch_size: usize) -> Result<Vec<f32>, Error> {
         match self {
             Loss::Categorical => match exec {
                 GPU(_) => todo!(),
@@ -22,11 +22,16 @@ impl Loss {
                 GPU(_) => todo!(),
                 Executor::CPU => {
                     if let (Some(actual), Some(target)) = (actual.cpu_borrow(), target.cpu_borrow()) {
-                        let mut error = 0.;
-                        for i in 0..actual.len() {
-                            error += (actual[i]-target[i]).powf(2.0);
+                        let output_size = actual.len() / batch_size;
+                        let mut losses = Vec::with_capacity(actual.len());
+                        for batch in 0..batch_size {
+                            let mut error = 0.;
+                            for i in 0..output_size {
+                                error += (actual[i + batch * output_size] - target[i + target_indices[batch]]).powf(2.0);
+                            }
+                            losses.push(error / actual.len() as f32);
                         }
-                        Ok(error / actual.len() as f32)
+                        Ok(losses)
                     } else {
                         Err(UnavailableBuffer("CPU buffer was not available when calculating error".to_string()))
                     }
