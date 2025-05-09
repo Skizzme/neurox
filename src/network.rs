@@ -92,6 +92,17 @@ impl<'a> Network<'a> {
                 println!("in {:?} out {:?} target {:?} actual {:?}", input_indices, output_indices, targets, batch_ouput);
                 let res = loss.calculate(&CPU, &mut batch_ouput, targets, &output_indices, batch_size);
                 println!("error {:?}", res);
+
+                let mut output_sensitivities = loss.dynamic_derivative(&CPU, &mut batch_ouput, targets, &output_indices);
+                self.layers.last().unwrap().borrow_mut().backward(&mut output_sensitivities, &optimizer);
+                for i in (1..self.layers.len()).rev() {
+                    let layer = self.layers[i-1].clone();
+                    layer.borrow_mut().backward(self.layers[i].borrow_mut().sensitivities(), &optimizer);
+                }
+
+                for i in (0..self.layers.len()).rev() {
+                    println!("{i} {:?}", self.layers[i].borrow_mut().sensitivities());
+                }
             }
         }
 

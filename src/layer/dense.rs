@@ -191,19 +191,23 @@ impl<'a> Layer<'a> for Dense<'a> {
                 let mut weight_mods = self.weight_mods.cpu_borrow().unwrap();
                 let mut bias_mods = self.bias_mods.cpu_borrow().unwrap();
 
-                for x in 0..self.size {
-                    // println!("[{:?}] {}", self.layer_sensitivities[i], x);
-                    let gradient = self.activation.derivative(outputs[x]) * in_sensitivities[x];
+                for batch in 0..batch_size {
+                    let out_offset = batch * self.size;
+                    let in_offset = batch * self.input_len;
+                    for x in 0..self.size {
+                        // println!("[{:?}] {}", self.layer_sensitivities[i], x);
+                        let gradient = self.activation.derivative(outputs[x + out_offset]) * in_sensitivities[x + out_offset];
 
-                    let bias_index = x;
-                    let new_bias = biases[bias_index] - (lr * gradient);
-                    bias_mods[bias_index] += new_bias - biases[bias_index];
-                    for y in 0..self.input_len {
-                        let weight_index = (self.input_len * x) + y;
+                        let bias_index = x;
+                        let new_bias = biases[bias_index] - (lr * gradient);
+                        bias_mods[bias_index] += new_bias - biases[bias_index];
+                        for y in 0..self.input_len {
+                            let weight_index = (self.input_len * x) + y;
 
-                        let new_weight = weights[weight_index] - (lr * self.activation.activate(outputs[y]) * gradient);
-                        weight_mods[weight_index] += new_weight - weights[weight_index];
-                        sensitivities[y] += gradient * weights[weight_index];
+                            let new_weight = weights[weight_index] - (lr * self.activation.activate(outputs[x + out_offset]) * gradient);
+                            weight_mods[weight_index] += new_weight - weights[weight_index];
+                            sensitivities[y + in_offset] += gradient * weights[weight_index];
+                        }
                     }
                 }
             }
@@ -271,5 +275,9 @@ impl<'a> Layer<'a> for Dense<'a> {
 
     fn output_size(&self) -> usize {
         self.size
+    }
+
+    fn sensitivities(&mut self) -> &mut DualVec {
+        &mut self.sensitivities
     }
 }

@@ -66,4 +66,8 @@ impl<'a> Layer<'a> for Attention<'_> {
     fn output_size(&self) -> usize {
         todo!()
     }
+
+    fn sensitivities(&mut self) -> &mut DualVec {
+        todo!()
+    }
 }

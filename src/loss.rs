@@ -2,7 +2,7 @@ use crate::dual_vec::DualVec;
 use crate::error::Error;
 use crate::error::Error::UnavailableBuffer;
 use crate::Executor;
-use crate::Executor::GPU;
+use crate::Executor::{CPU, GPU};
 
 pub enum Loss {
     Categorical,
@@ -10,7 +10,7 @@ pub enum Loss {
 }
 
 impl Loss {
-    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>, batch_size: usize) -> Result<Vec<f32>, Error> {
+    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>, batch_size: usize) -> Result<DualVec, Error> {
         match self {
             Loss::Categorical => match exec {
                 GPU(_) => todo!(),
@@ -31,7 +31,7 @@ impl Loss {
                             }
                             losses.push(error / actual.len() as f32);
                         }
-                        Ok(losses)
+                        Ok(DualVec::from_vec((&CPU, exec), losses))
                     } else {
                         Err(UnavailableBuffer("CPU buffer was not available when calculating error".to_string()))
                     }
@@ -40,11 +40,7 @@ impl Loss {
         }
     }
 
-    pub fn derivative(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec) -> DualVec {
-        todo!()
-    }
-
-    pub fn dynamic_derivative(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_positions: &Vec<usize>) -> DualVec {
+    pub fn dynamic_derivative(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>) -> DualVec {
 
         match self {
             Loss::Categorical => match exec {
