@@ -54,8 +54,6 @@ impl Loss {
                         (out.cpu_borrow(), actual.cpu_borrow(), target.cpu_borrow()) {
                         for i in 0..actual.len() {
                             gradients[i] = (2. * (actual[i] - target[target_indices[i]+i]) / actual.len() as f32);
-                            // gradients[i] = actual[i] - target[target_indices[i]+i];
-                            // println!("calcu {} {} {} {} {}", actual[i], target[target_indices[i]+i], gradients[i], i, target_indices[i]);
                         }
                     }
 

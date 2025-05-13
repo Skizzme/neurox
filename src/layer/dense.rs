@@ -116,31 +116,35 @@ impl<'a> Dense<'a> {
     }
 
     fn cpu_forward(&mut self, positions: &Vec<usize>, activated_inputs: &mut DualVec) {
-        let activated_inputs = activated_inputs.cpu().unwrap();
+        {
+            let activated_inputs = activated_inputs.cpu_borrow().unwrap();
+            let biases = self.biases.cpu_borrow().unwrap();
+            let weights = self.weights.cpu_borrow().unwrap();
+            let mut outputs = self.outputs.cpu_borrow().unwrap();
+            let mut activated_outputs = self.activated_outputs.cpu_borrow().unwrap();
 
-        for batch in 0..positions.len() {
-            let output_offset = batch * self.size;
-            let input_offset = positions[batch];
+            for batch in 0..positions.len() {
+                let output_offset = batch * self.size;
+                let input_offset = positions[batch];
 
-            let mut x = 0;
-            while x < self.size {
-                let outputs = self.outputs.cpu().unwrap();
-                let mut outputs = outputs.borrow_mut();
-                let output_index = x + output_offset;
+                let mut x = 0;
+                while x < self.size {
+                    let output_index = x + output_offset;
 
-                outputs[output_index] = self.biases.cpu().unwrap().borrow_mut()[x];
+                    outputs[output_index] = biases[x];
 
-                let mut y = 0;
-                while y < self.input_len {
-                    let weight_index = (self.input_len * x) + y;
-                    let in_value = activated_inputs.borrow_mut()[y + input_offset];
+                    let mut y = 0;
+                    while y < self.input_len {
+                        let weight_index = (self.input_len * x) + y;
+                        let in_value = activated_inputs[y + input_offset];
 
-                    outputs[output_index] += self.weights.cpu().unwrap().borrow_mut()[weight_index] * in_value;
-                    y += 1
+                        outputs[output_index] += weights[weight_index] * in_value;
+                        y += 1
+                    }
+                    activated_outputs[output_index] = self.activation.activate(outputs[output_index]);
+
+                    x += 1;
                 }
-                self.activated_outputs.cpu().unwrap().borrow_mut()[output_index] = self.activation.activate(outputs[output_index]);
-
-                x += 1;
             }
         }
 
@@ -201,7 +205,6 @@ impl<'a> Layer<'a> for Dense<'a> {
                         Some(indices) => indices[batch],
                     };
                     for x in 0..self.size {
-                        // println!("{} {} {}", in_sensitivities[x + out_offset], self.activation.derivative(outputs[x + out_offset]), outputs[x + out_offset]);
                         let gradient = self.activation.derivative(outputs[x + out_offset]) * in_sensitivities[x + out_offset];
 
                         let bias_index = x;
@@ -235,7 +238,6 @@ impl<'a> Layer<'a> for Dense<'a> {
                     self.weight_mods.cpu_borrow(), self.bias_mods.cpu_borrow()
                 ) {
                     for i in 0..weights.len() {
-                        // println!("{} {} {}", weights[i], w_mods[i], i);
                         weights[i] += w_mods[i] * i_batch_size;
                     }
                     for i in 0..biases.len() {

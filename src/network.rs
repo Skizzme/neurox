@@ -85,7 +85,6 @@ impl<'a> Network<'a> {
                     input_indices.push(sample * input_size);
                     output_indices.push(sample * output_size);
                 }
-                // println!("{:?} {:?}", input_indices, output_indices);
 
                 // Forward pass through all layers
                 self.layers[0].borrow_mut()
@@ -102,16 +101,10 @@ impl<'a> Network<'a> {
                         for i in 0..res.len() {
                             avg += res.cpu_borrow().unwrap()[i];
                         }
-                        // avg /= res.len() as f32;
                         last_loss = avg;
 
                         // Backward pass through all layers
                         let mut output_sensitivities = loss.dynamic_derivative(&CPU, &mut batch_output, targets, &output_indices);
-
-                        // for i in 0..output_sensitivities.len() {
-                        //     println!("{i} out {} expected {} change {}", batch_output.cpu_borrow().unwrap()[i], targets.cpu_borrow().unwrap()[output_indices[i]], output_sensitivities.cpu_borrow().unwrap()[i]);
-                        // }
-
                         {
                             let prev = self.layers[self.layers.len()-2].clone();
                             self.layers.last().unwrap().borrow_mut().backward(prev.borrow_mut().activated_output(), None, &mut output_sensitivities, &optimizer);
@@ -122,16 +115,13 @@ impl<'a> Network<'a> {
                             layer.borrow_mut().backward(layer_p.borrow_mut().activated_output(), None, self.layers[i+1].borrow_mut().sensitivities(), &optimizer);
                         }
                         {
-                            // FIRST LAYER BACK
                             let layer = self.layers[0].clone();
                             layer.borrow_mut().backward(&mut inputs, Some(input_indices), self.layers[1].borrow_mut().sensitivities(), &optimizer);
                         }
 
-                        // Apply gradients to all layers
-                        // self.layers.last().unwrap().borrow_mut().apply_gradients(&mut output_sensitivities, &optimizer, batch_size);
+                        // Apply calculated gradients
                         for i in (0..self.layers.len()).rev() {
                             let layer = self.layers[i].clone();
-
                             layer.borrow_mut().apply_gradients(&optimizer, batch_size);
                         }
                     }
@@ -145,13 +135,6 @@ impl<'a> Network<'a> {
                 println!("{epoch},{avg}");
                 avg = 0.;
             }
-        }
-
-        for i in 0..self.layers.len() {
-            let mut layer = self.layers[i].borrow_mut();
-            let mut outs = layer.activated_output().clone();
-            let mut values = layer.values();
-            // println!("weights: {:?} biases: {:?} outputs {:?}", values[0], values[1], outs.cpu_borrow());
         }
 
         Ok(last_loss)
