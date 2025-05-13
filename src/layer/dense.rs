@@ -59,17 +59,21 @@ impl<'a> Dense<'a> {
             forward_kernel: None,
         };
 
-        a.weights.randomize(c);
-        a.biases.randomize(c);
+        a.weights.randomize(c, 10.);
+        a.biases.randomize(c, 10.);
 
         a
     }
 
     fn ensure_batch_size(&mut self, batch_size: usize) {
-        if self.outputs.capacity() < batch_size * self.size {
+        if self.outputs.len() < batch_size * self.size {
             self.outputs.expand_to(self.size * batch_size);
             self.activated_outputs.expand_to(self.size * batch_size);
             self.sensitivities.expand_to(self.input_len * batch_size);
+        } else {
+            self.outputs.truncate_to(self.size * batch_size);
+            self.activated_outputs.truncate_to(self.size * batch_size);
+            self.sensitivities.truncate_to(self.input_len * batch_size);
         }
     }
 
@@ -118,8 +122,6 @@ impl<'a> Dense<'a> {
             let output_offset = batch * self.size;
             let input_offset = positions[batch];
 
-            println!("{} {}", input_offset, output_offset);
-
             let mut x = 0;
             while x < self.size {
                 let outputs = self.outputs.cpu().unwrap();
@@ -138,18 +140,17 @@ impl<'a> Dense<'a> {
                 }
                 self.activated_outputs.cpu().unwrap().borrow_mut()[output_index] = self.activation.activate(outputs[output_index]);
 
-                self.activated_outputs.updated_cpu();
-                self.outputs.updated_cpu();
-
                 x += 1;
             }
         }
+
+        self.activated_outputs.updated_cpu();
+        self.outputs.updated_cpu();
     }
 }
 
 impl<'a> Layer<'a> for Dense<'a> {
     fn dynamic_forward(&mut self, positions: &Vec<usize>, inputs: &mut DualVec) {
-
         self.ensure_batch_size(positions.len());
 
         match self.exec {
@@ -171,7 +172,7 @@ impl<'a> Layer<'a> for Dense<'a> {
         batch_size
     }
 
-    fn backward(&mut self, in_sensitivities: &mut DualVec, optimizer: &Optimizer)  {
+    fn backward(&mut self, inputs: &mut DualVec, input_indices: Option<Vec<usize>>, in_sensitivities: &mut DualVec, optimizer: &Optimizer)  {
         let batch_size = in_sensitivities.len() / self.size;
 
         match self.exec {
@@ -179,23 +180,28 @@ impl<'a> Layer<'a> for Dense<'a> {
             Executor::CPU => {
                 let lr = optimizer.learn_rate();
 
-                let in_sensitivities = in_sensitivities.cpu_borrow().unwrap();
+                let in_sensitivities = in_sensitivities.cpu_borrow().unwrap(); // 0
 
                 let mut outputs = self.outputs.cpu_borrow().unwrap();
 
-                let mut sensitivities = self.sensitivities.cpu_borrow().unwrap();
+                let mut sensitivities = self.sensitivities.cpu_borrow().unwrap(); // -1
+                sensitivities.fill(0.);
 
                 let biases = self.biases.cpu_borrow().unwrap();
                 let weights = self.weights.cpu_borrow().unwrap();
 
                 let mut weight_mods = self.weight_mods.cpu_borrow().unwrap();
                 let mut bias_mods = self.bias_mods.cpu_borrow().unwrap();
+                let inputs = inputs.cpu_borrow().unwrap();
 
                 for batch in 0..batch_size {
                     let out_offset = batch * self.size;
-                    let in_offset = batch * self.input_len;
+                    let in_offset = match &input_indices {
+                        None => batch * self.input_len,
+                        Some(indices) => indices[batch],
+                    };
                     for x in 0..self.size {
-                        // println!("[{:?}] {}", self.layer_sensitivities[i], x);
+                        // println!("{} {} {}", in_sensitivities[x + out_offset], self.activation.derivative(outputs[x + out_offset]), outputs[x + out_offset]);
                         let gradient = self.activation.derivative(outputs[x + out_offset]) * in_sensitivities[x + out_offset];
 
                         let bias_index = x;
@@ -204,9 +210,10 @@ impl<'a> Layer<'a> for Dense<'a> {
                         for y in 0..self.input_len {
                             let weight_index = (self.input_len * x) + y;
 
-                            let new_weight = weights[weight_index] - (lr * self.activation.activate(outputs[x + out_offset]) * gradient);
+                            let new_weight = weights[weight_index] - (lr * inputs[y + in_offset] * gradient);
                             weight_mods[weight_index] += new_weight - weights[weight_index];
-                            sensitivities[y + in_offset] += gradient * weights[weight_index];
+
+                            sensitivities[y + (batch * self.input_len)] += gradient * weights[weight_index];
                         }
                     }
                 }
@@ -214,8 +221,32 @@ impl<'a> Layer<'a> for Dense<'a> {
         }
     }
 
-    fn activated_output(&mut self) -> &mut DualVec {
-        &mut self.activated_outputs
+    fn apply_gradients(&mut self, optimizer: &Optimizer, batch_size: usize) {
+        match optimizer {
+            Optimizer::GradientDecent(lr) => {
+                let lr = *lr;
+                let i_batch_size = 1. / batch_size as f32;
+
+                if let (
+                    Some(mut weights), Some(mut biases),
+                    Some(mut w_mods), Some(mut b_mods)
+                ) = (
+                    self.weights.cpu_borrow(), self.biases.cpu_borrow(),
+                    self.weight_mods.cpu_borrow(), self.bias_mods.cpu_borrow()
+                ) {
+                    for i in 0..weights.len() {
+                        // println!("{} {} {}", weights[i], w_mods[i], i);
+                        weights[i] += w_mods[i] * i_batch_size;
+                    }
+                    for i in 0..biases.len() {
+                        biases[i] += b_mods[i] * i_batch_size;
+                    }
+
+                    w_mods.fill(0.);
+                    b_mods.fill(0.);
+                }
+            }
+        }
     }
 
     fn as_bytes(&mut self, bytes: &mut VecWriter) {
@@ -265,8 +296,8 @@ impl<'a> Layer<'a> for Dense<'a> {
         self.exec
     }
 
-    fn weights(&self) -> &DualVec {
-        &self.weights
+    fn values(&self) -> Vec<&DualVec> {
+        vec![&self.weights, &self.biases]
     }
 
     fn input_size(&self) -> usize {
@@ -275,6 +306,10 @@ impl<'a> Layer<'a> for Dense<'a> {
 
     fn output_size(&self) -> usize {
         self.size
+    }
+
+    fn activated_output(&mut self) -> &mut DualVec {
+        &mut self.activated_outputs
     }
 
     fn sensitivities(&mut self) -> &mut DualVec {

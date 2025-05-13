@@ -31,7 +31,7 @@ impl<'a> Layer<'a> for Attention<'_> {
         todo!()
     }
 
-    fn backward(&mut self, next_gradients: &mut DualVec, optimizer: &Optimizer) {
+    fn backward(&mut self, inputs: &mut DualVec, input_indices: Option<Vec<usize>>, next_gradients: &mut DualVec, optimizer: &Optimizer) {
         todo!()
     }
 
@@ -55,7 +55,7 @@ impl<'a> Layer<'a> for Attention<'_> {
         self.exec
     }
 
-    fn weights(&self) -> &DualVec {
+    fn values(&self) -> Vec<&DualVec> {
         todo!()
     }
 
@@ -68,6 +68,10 @@ impl<'a> Layer<'a> for Attention<'_> {
     }
 
     fn sensitivities(&mut self) -> &mut DualVec {
+        todo!()
+    }
+
+    fn apply_gradients(&mut self, optimizer: &Optimizer, batch_size: usize) {
         todo!()
     }
 }

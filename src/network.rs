@@ -60,7 +60,7 @@ impl<'a> Network<'a> {
         self.layers.last().unwrap().borrow_mut().activated_output().clone()
     }
 
-    pub fn train(&mut self, inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, loss: Loss, epochs: u32, batch_size: usize) -> Result<f32, Error> {
+    pub fn train(&mut self, mut inputs: &mut DualVec, targets: &mut DualVec, optimizer: Optimizer, loss: Loss, epochs: u32, mut batch_size: usize) -> Result<f32, Error> {
         let input_size = self.layers.first().unwrap().borrow().input_size();
         let output_size = self.layers.last().unwrap().borrow().output_size();
 
@@ -68,45 +68,93 @@ impl<'a> Network<'a> {
         if (targets.len() / output_size != samples) {
             return Err(Error::Mismatch(MismatchError::Sample(samples, targets.len() / output_size)))
         }
+        if batch_size > samples {
+            batch_size = samples;
+        }
 
-        let mut best_loss = f32::INFINITY;
+        let mut last_loss = f32::INFINITY;
         for epoch in 0..epochs {
+            let mut avg = 0.;
             for i in 0..samples / batch_size {
                 let mut input_indices = Vec::new();
                 let mut output_indices = Vec::new();
                 for batch in 0..batch_size {
                     // TODO This should probably not be just random, and shouldn't pick the same sample more than once within the same batch
-                    let sample = (random::<f64>() * samples as f64) as usize;
-                    println!("sample: {}", sample);
+                    let sample = (random::<f64>() * (samples-batch_size) as f64) as usize;
+
                     input_indices.push(sample * input_size);
                     output_indices.push(sample * output_size);
                 }
+                // println!("{:?} {:?}", input_indices, output_indices);
 
-                self.layers[0].borrow_mut().dynamic_forward(&input_indices, inputs);
+                // Forward pass through all layers
+                self.layers[0].borrow_mut()
+                    .dynamic_forward(&input_indices, inputs);
                 for i in 1..self.layers.len() {
                     let layer = self.layers[i].clone();
-                    layer.borrow_mut().forward(self.layers[i - 1].borrow_mut().activated_output());
+                    let mut layer = layer.borrow_mut();
+                    layer.forward(self.layers[i - 1].borrow_mut().activated_output());
                 }
-                let mut batch_ouput = self.layers.last().unwrap().borrow_mut().activated_output().clone();
+                let mut batch_output = self.layers.last().unwrap().borrow_mut().activated_output().clone();
 
-                println!("in {:?} out {:?} target {:?} actual {:?}", input_indices, output_indices, targets, batch_ouput);
-                let res = loss.calculate(&CPU, &mut batch_ouput, targets, &output_indices, batch_size);
-                println!("error {:?}", res);
+                match loss.calculate(&CPU, &mut batch_output, output_size, targets, &output_indices, batch_size) {
+                    Ok(mut res) => {
+                        for i in 0..res.len() {
+                            avg += res.cpu_borrow().unwrap()[i];
+                        }
+                        // avg /= res.len() as f32;
+                        last_loss = avg;
 
-                let mut output_sensitivities = loss.dynamic_derivative(&CPU, &mut batch_ouput, targets, &output_indices);
-                self.layers.last().unwrap().borrow_mut().backward(&mut output_sensitivities, &optimizer);
-                for i in (1..self.layers.len()).rev() {
-                    let layer = self.layers[i-1].clone();
-                    layer.borrow_mut().backward(self.layers[i].borrow_mut().sensitivities(), &optimizer);
+                        // Backward pass through all layers
+                        let mut output_sensitivities = loss.dynamic_derivative(&CPU, &mut batch_output, targets, &output_indices);
+
+                        // for i in 0..output_sensitivities.len() {
+                        //     println!("{i} out {} expected {} change {}", batch_output.cpu_borrow().unwrap()[i], targets.cpu_borrow().unwrap()[output_indices[i]], output_sensitivities.cpu_borrow().unwrap()[i]);
+                        // }
+
+                        {
+                            let prev = self.layers[self.layers.len()-2].clone();
+                            self.layers.last().unwrap().borrow_mut().backward(prev.borrow_mut().activated_output(), None, &mut output_sensitivities, &optimizer);
+                        }
+                        for i in (1..self.layers.len()-1).rev() {
+                            let layer = self.layers[i].clone();
+                            let layer_p = self.layers[i-1].clone();
+                            layer.borrow_mut().backward(layer_p.borrow_mut().activated_output(), None, self.layers[i+1].borrow_mut().sensitivities(), &optimizer);
+                        }
+                        {
+                            // FIRST LAYER BACK
+                            let layer = self.layers[0].clone();
+                            layer.borrow_mut().backward(&mut inputs, Some(input_indices), self.layers[1].borrow_mut().sensitivities(), &optimizer);
+                        }
+
+                        // Apply gradients to all layers
+                        // self.layers.last().unwrap().borrow_mut().apply_gradients(&mut output_sensitivities, &optimizer, batch_size);
+                        for i in (0..self.layers.len()).rev() {
+                            let layer = self.layers[i].clone();
+
+                            layer.borrow_mut().apply_gradients(&optimizer, batch_size);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{e}");
+                    }
                 }
-
-                for i in (0..self.layers.len()).rev() {
-                    println!("{i} {:?}", self.layers[i].borrow_mut().sensitivities());
-                }
+            }
+            avg /= (batch_size * output_size) as f32;
+            if epoch % 10 == 0 {
+                println!("{epoch},{avg}");
+                avg = 0.;
             }
         }
 
-        Ok(best_loss)
+        for i in 0..self.layers.len() {
+            let mut layer = self.layers[i].borrow_mut();
+            let mut outs = layer.activated_output().clone();
+            let mut values = layer.values();
+            // println!("weights: {:?} biases: {:?} outputs {:?}", values[0], values[1], outs.cpu_borrow());
+        }
+
+        Ok(last_loss)
     }
 
     pub fn as_bytes(&mut self) -> Vec<u8> {

@@ -77,18 +77,18 @@ impl DualVec {
         other.updated_cpu();
     }
 
-    pub fn randomize(&mut self, exec: &Executor) {
+    pub fn randomize(&mut self, exec: &Executor, div: f32) {
         match exec {
             GPU(p) => {
                 if let Some(buf) = &self.gpu.0 {
-                    cl_utils::randomize_buffer(&*buf.borrow(), 256, self.len as f32/ 10., p);
+                    cl_utils::randomize_buffer(&*buf.borrow(), 256, div, p);
                     self.updated_gpu();
                 }
             }
             Executor::CPU => {
                 if let Some(vec) = self.cpu() {
                     for i in 0..self.len {
-                        vec.borrow_mut()[i] = (random::<f32>() * 2.0 - 1.0) / self.len as f32 * 4.;
+                        vec.borrow_mut()[i] = (random::<f32>() * 2.0 - 1.0) / div;
                     }
                     self.updated_cpu();
                 }
@@ -206,6 +206,8 @@ impl DualVec {
             let capacity = vec.capacity();
             if capacity < size {
                 vec.reserve_exact(size - capacity);
+            }
+            if vec.len() < size {
                 vec.resize(size, 0.);
             }
         }

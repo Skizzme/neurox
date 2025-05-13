@@ -10,7 +10,7 @@ pub enum Loss {
 }
 
 impl Loss {
-    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>, batch_size: usize) -> Result<DualVec, Error> {
+    pub fn calculate(&self, exec: &Executor, actual: &mut DualVec, output_size: usize, target: &mut DualVec, target_indices: &Vec<usize>, batch_size: usize) -> Result<DualVec, Error> {
         match self {
             Loss::Categorical => match exec {
                 GPU(_) => todo!(),
@@ -22,7 +22,6 @@ impl Loss {
                 GPU(_) => todo!(),
                 Executor::CPU => {
                     if let (Some(actual), Some(target)) = (actual.cpu_borrow(), target.cpu_borrow()) {
-                        let output_size = actual.len() / batch_size;
                         let mut losses = Vec::with_capacity(actual.len());
                         for batch in 0..batch_size {
                             let mut error = 0.;
@@ -54,7 +53,9 @@ impl Loss {
                     if let (Some(mut gradients), Some(actual), Some(target)) =
                         (out.cpu_borrow(), actual.cpu_borrow(), target.cpu_borrow()) {
                         for i in 0..actual.len() {
-                            gradients[i] = (2. * (actual[i] - target[i]) / actual.len() as f32);
+                            gradients[i] = (2. * (actual[i] - target[target_indices[i]+i]) / actual.len() as f32);
+                            // gradients[i] = actual[i] - target[target_indices[i]+i];
+                            // println!("calcu {} {} {} {} {}", actual[i], target[target_indices[i]+i], gradients[i], i, target_indices[i]);
                         }
                     }
 
