@@ -16,11 +16,12 @@ pub trait Layer<'a> {
     fn dynamic_forward(&mut self, positions: &Vec<usize>, inputs: &mut DualVec);
     fn forward(&mut self, activated_inputs: &mut DualVec) -> usize;
 
-    fn backward(&mut self, inputs: &mut DualVec, input_indices: Option<Vec<usize>>, gradients: &mut DualVec, optimizer: &Optimizer);
+    fn backward(&mut self, inputs: &mut DualVec, input_indices: Option<&Vec<usize>>, gradients: &mut DualVec, optimizer: &Optimizer);
     fn apply_gradients(&mut self, optimizer: &Optimizer, batch_size: usize);
 
     fn as_bytes(&mut self, writer: &mut VecWriter);
-    fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader) -> Rc<RefCell<dyn Layer<'a> + 'a>> where Self: Sized;
+    fn from_bytes(exec: (&'a Executor, &'a Executor, &'a Executor), bytes: &mut CursorReader)
+        -> Rc<RefCell<dyn Layer<'a> + 'a>> where Self: Sized;
 
     fn id(&self) -> usize;
     fn exec(&self) -> &Executor;

@@ -1,3 +1,4 @@
+use std::time::Instant;
 use crate::dual_vec::DualVec;
 use crate::error::Error;
 use crate::error::Error::UnavailableBuffer;
@@ -39,7 +40,7 @@ impl Loss {
         }
     }
 
-    pub fn dynamic_derivative(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>) -> DualVec {
+    pub fn dynamic_derivative(&self, exec: &Executor, actual: &mut DualVec, target: &mut DualVec, target_indices: &Vec<usize>, out: &mut DualVec) {
 
         match self {
             Loss::Categorical => match exec {
@@ -47,17 +48,27 @@ impl Loss {
                 Executor::CPU => todo!(),
             }
             Loss::MeanSquared => match exec {
-                GPU(_) => todo!(),
-                Executor::CPU => {
-                    let mut out = DualVec::from_exec(exec, actual.len());
+                GPU(pq) => {
+                    // let st = Instant::now();
                     if let (Some(mut gradients), Some(actual), Some(target)) =
                         (out.cpu_borrow(), actual.cpu_borrow(), target.cpu_borrow()) {
                         for i in 0..actual.len() {
                             gradients[i] = (2. * (actual[i] - target[target_indices[i]+i]) / actual.len() as f32);
                         }
                     }
-
-                    out
+                    out.updated_cpu();
+                    // out.gpu();
+                    // pq.finish();
+                    // let d = st.elapsed();
+                    // println!("{:?}", d);
+                },
+                Executor::CPU => {
+                    if let (Some(mut gradients), Some(actual), Some(target)) =
+                        (out.cpu_borrow(), actual.cpu_borrow(), target.cpu_borrow()) {
+                        for i in 0..actual.len() {
+                            gradients[i] = (2. * (actual[i] - target[target_indices[i]+i]) / actual.len() as f32);
+                        }
+                    }
                 }
             }
         }

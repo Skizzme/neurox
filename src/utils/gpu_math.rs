@@ -1,8 +1,9 @@
-use ocl::{Buffer, ProQue, SpatialDims};
-
+use std::collections::hash_map::Values;
+use std::fmt::Pointer;
+use ocl::{Buffer, Kernel, ProQue, SpatialDims};
 use crate::utils::cl_utils;
 
-pub fn mult(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: &Buffer<f32>, target: &Buffer<f32>) -> Result<(), ocl::error::Error> {
+pub fn mult(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: &Buffer<f32>, target: &Buffer<f32>) {
     let max_wg = proque.max_wg_size().expect("Failed to get max workgroup size");
 
     let mult_kernel = proque
@@ -10,7 +11,8 @@ pub fn mult(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: &
         .arg(first)
         .arg(second)
         .arg(target)
-        .build()?;
+        .build()
+        .expect("Failed to build multiply kernel");
 
     let work_size = cl_utils::calc_ws(max_wg, first.len());
     unsafe {
@@ -19,12 +21,12 @@ pub fn mult(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: &
             .global_work_offset(first_offset)
             .global_work_size(SpatialDims::from(first.len()))
             .local_work_size(SpatialDims::from(work_size))
-            .enq()
+            .enq().unwrap();
     }
 }
 
 /// Adds the second buffer into the first buffer
-pub fn mult_second_and_add(proque: &ProQue, first: &Buffer<f32>, second: &Buffer<f32>, mult: f32) -> Result<(), ocl::error::Error> {
+pub fn mult_second_and_add(proque: &ProQue, first: &Buffer<f32>, second: &Buffer<f32>, mult: f32) -> Kernel {
     let max_wg = proque.max_wg_size().expect("Failed to get max workgroup size");
 
     let mult_kernel = proque
@@ -32,7 +34,8 @@ pub fn mult_second_and_add(proque: &ProQue, first: &Buffer<f32>, second: &Buffer
         .arg(first)
         .arg(second)
         .arg(mult)
-        .build()?;
+        .build()
+        .expect("Failed to build add kernel");
 
     let work_size = cl_utils::calc_ws(max_wg, first.len());
     unsafe {
@@ -40,11 +43,13 @@ pub fn mult_second_and_add(proque: &ProQue, first: &Buffer<f32>, second: &Buffer
             .cmd()
             .global_work_size(SpatialDims::from(first.len()))
             .local_work_size(SpatialDims::from(work_size))
-            .enq()
+            .enq().unwrap();
     }
+
+    mult_kernel
 }
 
-pub fn mult_single(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: f32, target: &Buffer<f32>) -> Result<(), ocl::error::Error> {
+pub fn mult_single(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, second: f32, target: &Buffer<f32>) {
     let max_wg = proque.max_wg_size().expect("Failed to get max workgroup size");
 
     let mult_kernel = proque
@@ -52,7 +57,8 @@ pub fn mult_single(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, se
         .arg(first)
         .arg(second)
         .arg(target)
-        .build()?;
+        .build()
+        .expect("Failed to build multiply kernel");
 
     let work_size = cl_utils::calc_ws(max_wg, first.len());
     unsafe {
@@ -61,11 +67,11 @@ pub fn mult_single(proque: &ProQue, first_offset: usize, first: &Buffer<f32>, se
             .global_work_offset(first_offset)
             .global_work_size(SpatialDims::from(first.len()))
             .local_work_size(SpatialDims::from(work_size))
-            .enq()
+            .enq().unwrap();
     }
 }
 
-pub fn mtrx_combine_columns(proque: &ProQue, matrix: Buffer<f32>, x_len: i32, y_len: i32) -> Result<Buffer<f32>, ocl::error::Error> {
+pub fn mtrx_combine_columns(proque: &ProQue, matrix: Buffer<f32>, x_len: i32, y_len: i32) -> Buffer<f32> {
     let max_wg = proque.max_wg_size().expect("Failed to get max workgroup size");
     let out: Buffer<f32> = Buffer::builder()
         .queue(proque.queue().clone())
@@ -78,17 +84,19 @@ pub fn mtrx_combine_columns(proque: &ProQue, matrix: Buffer<f32>, x_len: i32, y_
         .arg(&matrix)
         .arg(&out)
         .arg(x_len)
-        .build()?;
+        .build()
+        .expect("Failed to build kernel");
 
     unsafe {
         kernel
             .cmd()
             .global_work_size(SpatialDims::from((x_len, y_len)))
             .local_work_size(SpatialDims::from((cl_utils::calc_ws((max_wg as f32).sqrt() as usize, x_len as usize), cl_utils::calc_ws((max_wg as f32).sqrt() as usize, x_len as usize))))
-            .enq()?;
+            .enq()
+            .expect("Failed to enq kernel")
     }
 
-    Ok(out)
+    out
 }
 
 pub fn load_buffer(buf: &Buffer<f32>) -> Vec<f32> {

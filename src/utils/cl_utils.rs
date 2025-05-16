@@ -66,6 +66,7 @@ pub unsafe fn execute_kernel<SD: Into<SpatialDims>>(pro_que: &ProQue, kernel: &K
     let max_wg = pro_que.max_wg_size().expect("Failed to get max workgroup size");
     let size = size.into();
     let sizes = size.to_work_size().expect("Failed to convert SpatialDims to work sizes");
+
     let wg_size = match size.dim_count() {
         1 => {
             SpatialDims::One(calc_ws(max_wg, sizes[0]))

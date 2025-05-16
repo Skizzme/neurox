@@ -22,8 +22,13 @@ pub enum Executor {
 impl Executor {
     pub fn gpu() -> Self {
         let src = include_str!("kernels.c");
-        let pro_que = ProQue::builder().src(src).build().unwrap();
-        GPU(pro_que)
+        match ProQue::builder().src(src).build() {
+            Ok(pro_que) => GPU(pro_que),
+            Err(err) => {
+                eprint!("{}", err);
+                panic!();
+            }
+        }
     }
 }
 

@@ -6,7 +6,15 @@ pub enum Error {
     #[error("{0}")]
     Network(NetworkError),
     #[error("{0}")]
-    Mismatch(MismatchError)
+    Mismatch(MismatchError),
+    #[error("{0}")]
+    Decode(DecodeError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeError {
+    #[error("The encountered layer type ({0}) does not match any known types")]
+    InvalidLayerType(usize),
 }
 
 #[derive(Debug, thiserror::Error)]

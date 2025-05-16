@@ -1,15 +1,3 @@
-//void atomicAdd_g_f(volatile __global float *addr, float val) {
-//    union {
-//        uint u32;
-//        float f32;
-//    } next, expected, current;
-//    current.f32 = *addr;
-//    do {
-//        expected.f32 = current.f32;
-//        next.f32 = expected.f32 + val;
-//        current.u32 = atom_cmpxchg((volatile __global uint *)addr, expected.u32, next.u32);
-//    } while( current.u32 != expected.u32 );
-//}
 void atomicAdd_g_f(volatile __global float *addr, float val)
 {
     union {
@@ -38,14 +26,6 @@ void atomicAdd_g_f_l(volatile __local float *addr, float val)
 }
 
 float activate(float val, ulong activation) {
-//    printf("v: %f, %f\n", max(val, 0.0f), val);
-//    return max(val, 0.0f);
-//
-//    return val;
-//    return 1 / (1 + exp(-val));
-//    return 1 / (1 + exp(-val)) * 2 - 1;
-//    return 1 / (1 + exp(-val*4)) * 2 - 1;
-
     if (activation == 1) {
         // ReLU
         if (val > 0.0) { return val; } else { return 0; }
@@ -59,33 +39,21 @@ float activate(float val, ulong activation) {
         // Linear
         return val;
     }
-
-//    return sin(val);
 }
 
 float activate_derivative(float value, ulong activation) {
-//    value = activate(value);
-//
-//    if (value > 0) { return 1.0; } else { return 0.02; }
-//    return 1.0;
-//    return exp(value) / pow(exp(value) + 1.0, 2.0);
-//    return (2.0*exp(value)) / pow(exp(value) + 1.0, 2.0);
-//    return (8.0*exp(4*value)) / pow(exp(4*value) + 1.0, 2.0);
-
     if (activation == 1) {
         // ReLU
         if (value > 0) { return 1.0; } else { return 0.0; }
     }
     else if (activation == 2) {
         // TanH
-        float activated = activate(value, 2);
-        return 1 - (activated * activated);
+        float activated = activate(value, activation);
+        return 1.0 - (activated * activated);
     } else {
         // Linear
         return 1.0;
     }
-
-//    return cos(value);
 }
 
 
@@ -98,9 +66,7 @@ __kernel void random_buf(__global float* buffer, ulong randoms, float div) {
     int i = get_global_id(0);
     ulong result = (((randoms + i*0xFF9D2D) * 0x5DEECE66DL + 0xBL) & ((1L << 48) -1)) >> 16;
     float res = ((float) result) / 4294967295.0;
-    // * 2.0 - 1.0 // for -1.0 to 1.0 values
     res = (res * 2.0 - 1.0) / div; // This value division depends on the network size. If it's a big network it must be smaller, smaller network it must be larger.
-//    printf("RES: %f\n", res);
     buffer[i] = res;
 }
 
@@ -109,7 +75,7 @@ __kernel void activation(__global float* values, __global float* target, ulong a
     target[i] = activate(values[i], activation);
 }
 
-__kernel void cost(__constant float* values, __constant float* target, __global float* output) {
+__kernel void cost(__constant float* values, __constant float* target, __global float* output, ulong error_func) {
     int i = get_global_id(0);
     atomicAdd_g_f(&output[0], pow(values[i]-target[i], 2.0f));
 //    error[i] = target[i]-values[i];
@@ -170,7 +136,7 @@ __kernel void forward(
     int wg_x = get_local_id(0);
     int wg_y = get_local_id(1);
 
-    __local float local_outputs[128][128];
+    __local float local_outputs[64][64];
 
     int offset_x = x + offset_out;
     int offset_y = y + offset_in;
@@ -202,8 +168,6 @@ __kernel void forward(
 __kernel void backward(
     ulong activation,
     ulong input_length,
-    ulong weights_offset,
-    ulong biases_offset,
     float learn_rate,
     __constant float* inputs,
     __constant float* layer_output,
@@ -214,6 +178,7 @@ __kernel void backward(
     __global float* bias_mods,
     __global float* gradients_out,
     ulong offset_in,
+    ulong offset_sens,
     ulong offset_out
 ) {
     int x = get_global_id(0); // out dims
@@ -222,8 +187,8 @@ __kernel void backward(
     int wg_size_y = get_local_size(1);
     int wg_x = get_local_id(0);
     int wg_y = get_local_id(1);
-    ulong weight_index = (input_length * x) + y + weights_offset;
-    ulong bias_index = x+biases_offset;
+    ulong weight_index = (input_length * x) + y;
+    ulong bias_index = x;
 
     __local float local_gradients[128][128];
 
@@ -247,10 +212,7 @@ __kernel void backward(
         for (int i = 0; i < wg_size_x; i++) {
             sum += local_gradients[wg_y][i];
         }
-        atomicAdd_g_f(&gradients_out[offset_y], sum);
+        atomicAdd_g_f(&gradients_out[y + offset_sens], sum);
     }
 
 }
-
-// gradient = input * error_derivative(actual_output - desired_output)
-// new_weight = original_weight - learn_rate * gradient

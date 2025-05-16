@@ -20,8 +20,8 @@ fn gen_index<R: Rng + ?Sized>(rng: &mut R, ubound: usize) -> usize {
 pub struct DualVec {
     len: usize,
     capacity: usize,
-    cpu: (Option<Rc<RefCell<Vec<f32>>>>, bool),
-    gpu: (Option<Rc<RefCell<Buffer<f32>>>>, bool),
+    pub cpu: (Option<Rc<RefCell<Vec<f32>>>>, bool),
+    pub gpu: (Option<Rc<RefCell<Buffer<f32>>>>, bool),
 }
 
 
@@ -37,7 +37,7 @@ impl DualVec {
         let len = vec.len();
         let capacity = vec.capacity();
         let gpu = match exec {
-            (Executor::GPU(q), _) | (_, Executor::GPU(q)) => {
+            (GPU(q), _) | (_, GPU(q)) => {
                 let buf = cl_utils::new_buffer(q, vec.len());
                 cl_utils::buf_write(&buf, &vec);
                 Some(Rc::new(RefCell::new(buf)))
